@@ -99,13 +99,53 @@ class WebUntisRest
 }
 
 // ------------------------------------------------------------
-// Defensiver Extraktor: durchsucht eine beliebig verschachtelte
-// REST-Antwort nach Einträgen mit position1 (Lehrer) und
-// position2 (Fächer) – wie sie timetable/entries liefert – und
-// bildet Kürzel-Paare. Zusätzlich werden Objekte mit klassischen
-// te/su-Arrays (Legacy-Endpunkte) erkannt.
-// Rückgabe: ['paare' => ['LehrerKrz|FachKrz' => true], 'eintraege' => n]
+// Extraktor für den Legacy-Endpunkt /api/public/timetable/weekly/data
+// (formatId=1). Perioden liegen unter data.result.data.elementPeriods,
+// jede Periode hat ein elements-Array mit {type, id, orgId}:
+//   type 2 = Lehrkraft, type 3 = Fach.
+// Bei Vertretungen steht in id die Vertretung und in orgId die
+// reguläre Lehrkraft -> für "wer unterrichtet was" zählt orgId.
+// Rückgabe: ['paare' => ['lehrerWuId|fachWuId' => true],
+//            'perioden' => n, 'namen' => [typ][id] => Kürzel]
 // ------------------------------------------------------------
+function rest_paare_aus_weekly($json): array
+{
+    $paare = [];
+    $perioden = 0;
+    $namen = [2 => [], 3 => []];
+
+    $daten = $json['data']['result']['data'] ?? null;
+    if (!is_array($daten)) return ['paare' => [], 'perioden' => 0, 'namen' => $namen];
+
+    // Auflösungstabelle (für Berichte/Diagnose)
+    foreach (($daten['elements'] ?? []) as $el) {
+        $typ = (int)($el['type'] ?? 0);
+        if (($typ === 2 || $typ === 3) && isset($el['id'])) {
+            $namen[$typ][(int)$el['id']] = (string)($el['name'] ?? '');
+        }
+    }
+
+    foreach (($daten['elementPeriods'] ?? []) as $periodenListe) {
+        foreach ((array)$periodenListe as $periode) {
+            $lehrer = []; $faecher = [];
+            foreach (($periode['elements'] ?? []) as $el) {
+                $typ = (int)($el['type'] ?? 0);
+                // reguläre Zuordnung: orgId (falls Vertretung), sonst id
+                $id  = (int)(($el['orgId'] ?? 0) > 0 ? $el['orgId'] : ($el['id'] ?? 0));
+                if ($id <= 0) continue;
+                if ($typ === 2) $lehrer[$id] = true;
+                if ($typ === 3) $faecher[$id] = true;
+            }
+            if ($lehrer === [] || $faecher === []) continue;
+            $perioden++;
+            foreach (array_keys($lehrer) as $l) {
+                foreach (array_keys($faecher) as $f) $paare["$l|$f"] = true;
+            }
+        }
+    }
+    return ['paare' => $paare, 'perioden' => $perioden, 'namen' => $namen];
+}
+
 function rest_paare_extrahieren($daten): array
 {
     $paare = [];

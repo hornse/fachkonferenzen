@@ -284,18 +284,15 @@ if ($seg === ['sync', 'rest-sondierung'] && $method === 'POST') {
 
         $von = date('Y-m-d', strtotime('monday this week'));
         $bis = date('Y-m-d', strtotime('friday this week'));
+        $entriesBasis = ['start' => $von, 'end' => $bis, 'format' => 2,
+                         'resourceType' => 'TEACHER', 'resources' => $tid];
         $proben = [
             ['/WebUntis/api/rest/view/v1/app/data', []],
             ['/WebUntis/api/rest/view/v1/timetable/entries',
-                ['start' => $von, 'end' => $bis, 'format' => 2,
-                 'resourceType' => 'TEACHER', 'resources' => $tid,
-                 'periodTypes' => '', 'timetableType' => 'STANDARD']],
+                $entriesBasis + ['periodTypes' => '', 'timetableType' => 'STANDARD']],
+            ['/WebUntis/api/rest/view/v1/timetable/entries', $entriesBasis],
             ['/WebUntis/api/rest/view/v1/timetable/entries',
-                ['start' => $von, 'end' => $bis, 'format' => 2,
-                 'resourceType' => 'SUBJECT', 'resources' => $sid,
-                 'periodTypes' => '', 'timetableType' => 'STANDARD']],
-            ['/WebUntis/api/rest/view/v1/timetable/filter',
-                ['resourceType' => 'TEACHER', 'timetableType' => 'STANDARD']],
+                $entriesBasis + ['timetableType' => 'MY_TIMETABLE']],
             ['/WebUntis/api/public/timetable/weekly/data',
                 ['elementType' => 2, 'elementId' => $tid,
                  'date' => $von, 'formatId' => 1]],
@@ -306,9 +303,30 @@ if ($seg === ['sync', 'rest-sondierung'] && $method === 'POST') {
                       'contentType' => $r['contentType']];
             if ($r['json'] !== null) {
                 $zeile['json_schluessel'] = array_slice(array_keys($r['json']), 0, 12);
-                $ex = rest_paare_extrahieren($r['json']);
-                $zeile['extrahierte_paare']    = count($ex['paare']);
-                $zeile['paar_beispiele']       = array_slice(array_keys($ex['paare']), 0, 8);
+                // Fehlerdetails im Klartext zeigen (sagt uns, welcher Parameter falsch ist)
+                if ($r['status'] >= 400) {
+                    $zeile['fehler_details'] = [
+                        'errorCode'        => $r['json']['errorCode'] ?? null,
+                        'validationErrors' => $r['json']['validationErrors'] ?? null,
+                        'message'          => $r['json']['message'] ?? null,
+                    ];
+                }
+                if (strpos($pfad, 'weekly/data') !== false) {
+                    $w = rest_paare_aus_weekly($r['json']);
+                    $zeile['extrahierte_paare'] = count($w['paare']);
+                    $zeile['perioden']          = $w['perioden'];
+                    // Beispiele mit aufgelösten Kürzeln (Lehrer|Fach)
+                    $beispiele = [];
+                    foreach (array_slice(array_keys($w['paare']), 0, 8) as $paar) {
+                        [$l, $f] = explode('|', $paar);
+                        $beispiele[] = ($w['namen'][2][(int)$l] ?? $l) . '|' . ($w['namen'][3][(int)$f] ?? $f);
+                    }
+                    $zeile['paar_beispiele'] = $beispiele;
+                } else {
+                    $ex = rest_paare_extrahieren($r['json']);
+                    $zeile['extrahierte_paare'] = count($ex['paare']);
+                    $zeile['paar_beispiele']    = array_slice(array_keys($ex['paare']), 0, 8);
+                }
             } else {
                 $zeile['auszug'] = mb_substr($r['text'], 0, 300);
             }
@@ -368,45 +386,46 @@ if ($seg === ['sync', 'webuntis'] && $method === 'POST') {
             $fehler = [];
 
             if ($apiWahl === 'rest_beta') {
-                // ---- BETA: Paare über die interne REST-API (je Lehrkraft) ----
-                $klein = function_exists('mb_strtolower')
-                    ? fn(string $s) => mb_strtolower($s) : fn(string $s) => strtolower($s);
-                $fachIdVonKrz = [];
-                foreach ($subjects as $s) {
-                    if (($s['name'] ?? '') !== '') $fachIdVonKrz[$klein((string)$s['name'])] = (int)$s['id'];
-                }
+                // ---- BETA: Paare über /api/public/timetable/weekly/data ----
+                // (laut Sondierung der einzige funktionierende Weg auf
+                //  frg-dusseldorf; liefert IDs direkt, kein Kürzel-Matching)
                 $rest = new WebUntisRest($cfg['base_url'], $cfg['school']);
                 $rest->mitSessionCookie((string)$wu->sessionCookie());
                 if (!$rest->tokenHolen()) {
                     json_err('REST-Beta: kein JWT von /api/token/new erhalten – bitte zuerst die Sondierung ausführen', 502);
                 }
                 $rest->tenantErmitteln();
-                $vonIso = substr($von, 0, 4) . '-' . substr($von, 4, 2) . '-' . substr($von, 6, 2);
-                $bisIso = substr($bis, 0, 4) . '-' . substr($bis, 4, 2) . '-' . substr($bis, 6, 2);
-                $unbekannteFaecher = [];
-                foreach ($teachers as $t) {
-                    $tid = (int)$t['id'];
-                    $r = $rest->get('/WebUntis/api/rest/view/v1/timetable/entries', [
-                        'start' => $vonIso, 'end' => $bisIso, 'format' => 2,
-                        'resourceType' => 'TEACHER', 'resources' => $tid,
-                        'periodTypes' => '', 'timetableType' => 'STANDARD']);
-                    if ($r['status'] !== 200 || $r['json'] === null) {
-                        $fehler[] = 'REST Lehrer ' . ($t['name'] ?? $tid) . ': HTTP ' . $r['status'];
-                        continue;
-                    }
-                    $ex = rest_paare_extrahieren($r['json']);
-                    foreach (array_keys($ex['paare']) as $paar) {
-                        [, $fachKrz] = explode('|', $paar, 2);
-                        $fid = $fachIdVonKrz[$klein($fachKrz)] ?? null;
-                        if ($fid === null) { $unbekannteFaecher[$fachKrz] = true; continue; }
-                        $paare["$tid|$fid"] = true;
+
+                // Alle Montage im Zeitraum (weekly/data liefert je Aufruf eine Woche)
+                $montage = [];
+                $t = strtotime(substr($von, 0, 4) . '-' . substr($von, 4, 2) . '-' . substr($von, 6, 2));
+                $ende = strtotime(substr($bis, 0, 4) . '-' . substr($bis, 4, 2) . '-' . substr($bis, 6, 2));
+                $t = strtotime('monday this week', $t);
+                while ($t <= $ende) { $montage[] = date('Y-m-d', $t); $t = strtotime('+1 week', $t); }
+                if ($montage === []) $montage[] = date('Y-m-d', strtotime('monday this week', $ende));
+
+                $httpFehler = 0;
+                foreach ($teachers as $tRow) {
+                    $tid = (int)$tRow['id'];
+                    foreach ($montage as $montag) {
+                        $r = $rest->get('/WebUntis/api/public/timetable/weekly/data', [
+                            'elementType' => 2, 'elementId' => $tid,
+                            'date' => $montag, 'formatId' => 1]);
+                        if ($r['status'] !== 200 || $r['json'] === null) {
+                            $httpFehler++;
+                            if ($httpFehler <= 5) {
+                                $fehler[] = 'REST weekly Lehrer ' . ($tRow['name'] ?? $tid)
+                                          . ' (' . $montag . '): HTTP ' . $r['status'];
+                            }
+                            continue;
+                        }
+                        foreach (array_keys(rest_paare_aus_weekly($r['json'])['paare']) as $paar) {
+                            $paare[$paar] = true;
+                        }
                     }
                 }
-                if ($unbekannteFaecher !== []) {
-                    $fehler[] = 'REST: Fachkürzel ohne Treffer in getSubjects(): '
-                        . implode(', ', array_slice(array_keys($unbekannteFaecher), 0, 15));
-                }
-                if ($paare === [] ) {
+                if ($httpFehler > 5) $fehler[] = '… und ' . ($httpFehler - 5) . ' weitere HTTP-Fehler';
+                if ($paare === []) {
                     json_err('REST-Beta lieferte keine Paare – Ergebnis der Sondierung bitte an die Entwicklung geben. Der Standard-Sync (JSON-RPC) funktioniert unverändert.', 502);
                 }
             } else {

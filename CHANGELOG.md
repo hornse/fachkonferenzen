@@ -1,5 +1,14 @@
 # Changelog – Fachkonferenzen FRG
 
+## v0.2.1-beta (Juli 2026) – REST-Beta auf weekly/data umgestellt
+
+- Sondierungsbefund frg-dusseldorf: timetable/entries -> 404 (validationErrors),
+  weekly/data -> 200. Beta-Sync nutzt jetzt /api/public/timetable/weekly/data
+  je Lehrkraft und Woche; Paare direkt über WebUntis-IDs, Vertretungen werden
+  auf die reguläre Lehrkraft (orgId) zurückgeführt, Perioden ohne Fach ignoriert
+- Sondierung erweitert: validationErrors im Klartext, entries-Parametervarianten,
+  weekly-Paarzählung mit aufgelösten Kürzeln
+
 ## v0.2.0-beta (Juli 2026) – Interne REST-API (experimentell)
 
 - REST-Sondierung: Admin-Werkzeug auf der Sync-Seite, das die interne
