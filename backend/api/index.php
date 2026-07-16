@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__) . '/bootstrap.php';
 require dirname(__DIR__) . '/auth/WebUntisAuth.php';
+require __DIR__ . '/sync.php';
 
 set_exception_handler(function (Throwable $e) {
     error_log('[API] ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
@@ -339,137 +340,6 @@ if ($seg === ['sync', 'webuntis'] && $method === 'POST') {
                       json_encode($ergebnis, JSON_UNESCAPED_UNICODE)]);
     }
     json_out($ergebnis);
-}
-
-function sync_anwenden(array $teachers, array $subjects, array $rooms, array $paarKeys, string $modus): array
-{
-    $pdo = db();
-    $anwenden = $modus === 'uebernehmen';
-    if ($anwenden) $pdo->beginTransaction();
-
-    $stat = ['lehrer_neu' => 0, 'faecher_neu' => 0, 'raeume_neu' => 0,
-             'zuordnungen_neu' => 0, 'zuordnungen_entfernt' => 0,
-             'zuordnungen_gesamt_webuntis' => count($paarKeys)];
-
-    // --- Lehrer upsert (per webuntis_id) ---
-    $mapLehrer = [];   // webuntis_id => lehrer.id
-    $vorhanden = $pdo->query('SELECT id, webuntis_id, kuerzel FROM lehrer')->fetchAll();
-    $byWuId = []; $byKrz = [];
-    foreach ($vorhanden as $r) {
-        if ($r['webuntis_id'] !== null) $byWuId[(int)$r['webuntis_id']] = (int)$r['id'];
-        $byKrz[$r['kuerzel']] = (int)$r['id'];
-    }
-    foreach ($teachers as $t) {
-        $wid = (int)$t['id']; $krz = (string)($t['name'] ?? '');
-        if ($krz === '') continue;
-        $id = $byWuId[$wid] ?? $byKrz[$krz] ?? null;
-        if ($id === null) {
-            $stat['lehrer_neu']++;
-            if ($anwenden) {
-                $pdo->prepare('INSERT INTO lehrer (kuerzel, vorname, nachname, webuntis_id, aktiv)
-                               VALUES (?,?,?,?,1)')
-                    ->execute([$krz, $t['foreName'] ?? '', $t['longName'] ?? '', $wid]);
-                $id = (int)$pdo->lastInsertId();
-            }
-        } elseif ($anwenden) {
-            $pdo->prepare('UPDATE lehrer SET webuntis_id = ?, vorname = ?, nachname = ?, aktiv = 1
-                            WHERE id = ?')
-                ->execute([$wid, $t['foreName'] ?? '', $t['longName'] ?? '', $id]);
-        }
-        if ($id !== null) $mapLehrer[$wid] = $id;
-    }
-
-    // --- Fächer upsert (per webuntis_id, sonst Kürzel) ---
-    $mapFach = [];
-    $vorhanden = $pdo->query('SELECT id, webuntis_id, kuerzel FROM faecher')->fetchAll();
-    $byWuId = []; $byKrz = [];
-    foreach ($vorhanden as $r) {
-        if ($r['webuntis_id'] !== null) $byWuId[(int)$r['webuntis_id']] = (int)$r['id'];
-        $byKrz[$r['kuerzel']] = (int)$r['id'];
-    }
-    foreach ($subjects as $s) {
-        $wid = (int)$s['id']; $krz = (string)($s['name'] ?? '');
-        if ($krz === '') continue;
-        $id = $byWuId[$wid] ?? $byKrz[$krz] ?? null;
-        if ($id === null) {
-            $stat['faecher_neu']++;
-            if ($anwenden) {
-                $pdo->prepare('INSERT INTO faecher (kuerzel, name, webuntis_id, aktiv)
-                               VALUES (?,?,?,1)')
-                    ->execute([$krz, $s['longName'] ?? $krz, $wid]);
-                $id = (int)$pdo->lastInsertId();
-            }
-        } elseif ($anwenden) {
-            $pdo->prepare('UPDATE faecher SET webuntis_id = ? WHERE id = ?')->execute([$wid, $id]);
-        }
-        if ($id !== null) $mapFach[$wid] = $id;
-    }
-
-    // --- Räume upsert ---
-    $vorhanden = $pdo->query('SELECT id, webuntis_id, kuerzel FROM raeume')->fetchAll();
-    $byWuId = []; $byKrz = [];
-    foreach ($vorhanden as $r) {
-        if ($r['webuntis_id'] !== null) $byWuId[(int)$r['webuntis_id']] = (int)$r['id'];
-        $byKrz[$r['kuerzel']] = (int)$r['id'];
-    }
-    foreach ($rooms as $r) {
-        $wid = (int)$r['id']; $krz = (string)($r['name'] ?? '');
-        if ($krz === '') continue;
-        if (!isset($byWuId[$wid]) && !isset($byKrz[$krz])) {
-            $stat['raeume_neu']++;
-            if ($anwenden) {
-                $pdo->prepare('INSERT INTO raeume (kuerzel, name, webuntis_id, aktiv) VALUES (?,?,?,1)')
-                    ->execute([$krz, $r['longName'] ?? $krz, $wid]);
-            }
-        }
-    }
-
-    // --- Zuordnungen diffen ---
-    // Ziel-Paare in lokale IDs übersetzen (nur im Übernehmen-Modus vollständig,
-    // in der Vorschau fehlen ggf. IDs neuer Lehrer/Fächer)
-    $ziel = [];  // "lehrerId|fachId" => true
-    $unaufgeloest = 0;
-    foreach ($paarKeys as $key) {
-        [$twid, $swid] = array_map('intval', explode('|', $key));
-        $lid = $mapLehrer[$twid] ?? null;
-        $fid = $mapFach[$swid] ?? null;
-        if ($lid === null || $fid === null) { $unaufgeloest++; continue; }
-        $ziel["$lid|$fid"] = true;
-    }
-
-    $bestehend = $pdo->query(
-        "SELECT id, lehrer_id, fach_id, quelle, gesperrt FROM lehrer_fach")->fetchAll();
-    $bestehendKeys = [];
-    foreach ($bestehend as $r) $bestehendKeys[$r['lehrer_id'] . '|' . $r['fach_id']] = $r;
-
-    $neu = []; $entfernt = [];
-    foreach (array_keys($ziel) as $key) {
-        if (!isset($bestehendKeys[$key])) $neu[] = $key;
-    }
-    foreach ($bestehend as $r) {
-        $key = $r['lehrer_id'] . '|' . $r['fach_id'];
-        // Nur webuntis-Zuordnungen entfernen; manuell/csv/gesperrt bleiben immer
-        if ($r['quelle'] === 'webuntis' && !(int)$r['gesperrt'] && !isset($ziel[$key])) {
-            $entfernt[] = (int)$r['id'];
-        }
-    }
-    $stat['zuordnungen_neu']       = count($neu);
-    $stat['zuordnungen_entfernt']  = count($entfernt);
-    $stat['zuordnungen_unaufgeloest'] = $unaufgeloest;
-
-    if ($anwenden) {
-        $ins = $pdo->prepare(
-            "INSERT INTO lehrer_fach (lehrer_id, fach_id, quelle, gesperrt)
-             VALUES (?,?,'webuntis',0)
-             ON DUPLICATE KEY UPDATE lehrer_id = lehrer_id");
-        foreach ($neu as $key) { [$lid, $fid] = explode('|', $key); $ins->execute([(int)$lid, (int)$fid]); }
-        if ($entfernt !== []) {
-            $in = implode(',', array_fill(0, count($entfernt), '?'));
-            $pdo->prepare("DELETE FROM lehrer_fach WHERE id IN ($in)")->execute($entfernt);
-        }
-        $pdo->commit();
-    }
-    return $stat;
 }
 
 // ============================================================

@@ -1,5 +1,14 @@
 # Changelog – Fachkonferenzen FRG
 
+## v0.1.3 (Juli 2026) – Sync robust gegen doppelte Kürzel
+
+- Fix: Abbruch „Duplicate entry (B)" beim Übernehmen – doppelte Kürzel aus
+  WebUntis (Fächer, Lehrkräfte, Räume) werden jetzt auf denselben Datensatz
+  zusammengeführt, inkl. Groß-/Kleinschreibungs-Kollisionen
+- Zusammengeführte Kürzel werden im Sync-Ergebnis angezeigt
+- Sync-Logik nach backend/api/sync.php ausgelagert und mit eigener
+  Testsuite abgedeckt (Duplikate, Idempotenz, Schutz manueller Einträge)
+
 ## v0.1.2 (Juli 2026) – Sync-Übernahme aus Vorschau-Zwischenspeicher
 
 - Vorschau speichert die abgerufenen WebUntis-Daten serverseitig (15 Min.)

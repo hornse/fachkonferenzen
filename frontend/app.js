@@ -732,6 +732,16 @@ function ansichtSync() {
                             <td>${r.lehrer_neu} / ${r.faecher_neu} / ${r.raeume_neu}</td></tr>
                     </tbody></table>
                     ${r.fehler.length ? `<div class="konflikt-kasten">${r.fehler.map(q).join('<br>')}</div>` : ''}
+                    ${(() => {
+                        const d = r.duplikate || {};
+                        const teile = [];
+                        if ((d.faecher || []).length) teile.push('Fächer: ' + d.faecher.map(q).join(', '));
+                        if ((d.lehrer  || []).length) teile.push('Lehrkräfte: ' + d.lehrer.map(q).join(', '));
+                        if ((d.raeume  || []).length) teile.push('Räume: ' + d.raeume.map(q).join(', '));
+                        return teile.length
+                            ? `<div class="hinweis-kasten"><strong>Doppelte Kürzel in WebUntis zusammengeführt:</strong><br>${teile.join('<br>')}</div>`
+                            : '';
+                    })()}
                     ${modus === 'uebernehmen' && r.datenquelle === 'vorschau_zwischenspeicher'
                         ? '<p class="untertitel">Übernommen aus den Daten der Vorschau (kein erneuter WebUntis-Abruf).</p>' : ''}
                 </div>`;
