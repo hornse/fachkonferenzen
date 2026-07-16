@@ -1,5 +1,12 @@
 # Changelog – Fachkonferenzen FRG
 
+## v0.1.2 (Juli 2026) – Sync-Übernahme aus Vorschau-Zwischenspeicher
+
+- Vorschau speichert die abgerufenen WebUntis-Daten serverseitig (15 Min.)
+- „Übernehmen" schreibt aus dem Zwischenspeicher: sekundenschnell, kein
+  zweiter Abruf, kein Proxy-Timeout mehr; Fallback auf Live-Abruf bleibt
+- Sync läuft bei Verbindungsabbruch serverseitig zu Ende (ignore_user_abort)
+
 ## v0.1.1 (Juli 2026) – Sync-Feinschliff
 
 - Sync-Vorschau zeigt Zuordnungen zu noch nicht angelegten Stammdaten separat an

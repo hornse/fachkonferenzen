@@ -260,6 +260,10 @@ if (($seg[0] ?? '') === 'lehrer-fach') {
 // ============================================================
 if ($seg === ['sync', 'webuntis'] && $method === 'POST') {
     require_admin();
+    // Auch bei Proxy-Timeout/Verbindungsabbruch zu Ende laufen:
+    ignore_user_abort(true);
+    set_time_limit(0);
+
     $b   = body_json();
     $cfg = config('webuntis');
     $von = preg_replace('/\D/', '', (string)req($b, 'von'));
@@ -267,41 +271,69 @@ if ($seg === ['sync', 'webuntis'] && $method === 'POST') {
     if (strlen($von) !== 8 || strlen($bis) !== 8) json_err('von/bis im Format YYYY-MM-DD angeben');
     $modus = ($b['modus'] ?? 'vorschau') === 'uebernehmen' ? 'uebernehmen' : 'vorschau';
 
-    $wu = new WebUntisAuth($cfg['base_url'], $cfg['school'], $cfg['client']);
-    try {
-        $wu->authenticate((string)req($b, 'benutzername'), (string)req($b, 'passwort'));
-        $teachers = $wu->getTeachers();
-        $subjects = $wu->getSubjects();
-        $rooms    = [];
-        try { $rooms = $wu->getRooms(); } catch (Throwable $e) { /* optional */ }
+    // Übernehmen nutzt die Daten der letzten Vorschau (max. 15 Min. alt,
+    // gleicher Zeitraum) -> kein zweiter langer WebUntis-Abruf nötig.
+    $cache = $_SESSION['sync_cache'] ?? null;
+    $cacheGueltig = is_array($cache)
+        && ($cache['von'] ?? '') === $von && ($cache['bis'] ?? '') === $bis
+        && (time() - ($cache['zeit'] ?? 0)) < 900;
 
-        // Lehrer-Fach-Paare aus dem Stundenplan: 1 Aufruf pro Fach (type=3)
-        $paare  = [];   // "webuntisLehrerId|webuntisFachId" => true
-        $fehler = [];
-        foreach ($subjects as $s) {
-            $sid = (int)$s['id'];
-            try {
-                foreach ($wu->getTimetable(3, $sid, $von, $bis) as $periode) {
-                    if (($periode['lstype'] ?? 'ls') !== 'ls') continue; // nur Unterricht
-                    foreach (($periode['te'] ?? []) as $te) {
-                        $tid = (int)($te['id'] ?? 0);
-                        if ($tid > 0) $paare["$tid|$sid"] = true;
+    if ($modus === 'uebernehmen' && $cacheGueltig) {
+        $teachers   = $cache['teachers'];
+        $subjects   = $cache['subjects'];
+        $rooms      = $cache['rooms'];
+        $paarKeys   = $cache['paare'];
+        $fehler     = $cache['fehler'];
+        $datenquelle = 'vorschau_zwischenspeicher';
+    } else {
+        $wu = new WebUntisAuth($cfg['base_url'], $cfg['school'], $cfg['client']);
+        try {
+            $wu->authenticate((string)req($b, 'benutzername'), (string)req($b, 'passwort'));
+            $teachers = $wu->getTeachers();
+            $subjects = $wu->getSubjects();
+            $rooms    = [];
+            try { $rooms = $wu->getRooms(); } catch (Throwable $e) { /* optional */ }
+
+            // Lehrer-Fach-Paare aus dem Stundenplan: 1 Aufruf pro Fach (type=3)
+            $paare  = [];   // "webuntisLehrerId|webuntisFachId" => true
+            $fehler = [];
+            foreach ($subjects as $s) {
+                $sid = (int)$s['id'];
+                try {
+                    foreach ($wu->getTimetable(3, $sid, $von, $bis) as $periode) {
+                        if (($periode['lstype'] ?? 'ls') !== 'ls') continue; // nur Unterricht
+                        foreach (($periode['te'] ?? []) as $te) {
+                            $tid = (int)($te['id'] ?? 0);
+                            if ($tid > 0) $paare["$tid|$sid"] = true;
+                        }
                     }
+                } catch (Throwable $e) {
+                    $fehler[] = 'Fach ' . ($s['name'] ?? $sid) . ': ' . $e->getMessage();
                 }
-            } catch (Throwable $e) {
-                $fehler[] = 'Fach ' . ($s['name'] ?? $sid) . ': ' . $e->getMessage();
             }
+            $paarKeys = array_keys($paare);
+        } finally {
+            $wu->logout();
         }
-    } finally {
-        $wu->logout();
+        $datenquelle = 'webuntis_live';
     }
 
-    $ergebnis = sync_anwenden($teachers, $subjects, $rooms, array_keys($paare), $modus);
-    $ergebnis['zeitraum'] = ['von' => $von, 'bis' => $bis];
-    $ergebnis['fehler']   = $fehler;
-    $ergebnis['modus']    = $modus;
+    if ($modus === 'vorschau') {
+        $_SESSION['sync_cache'] = [
+            'von' => $von, 'bis' => $bis, 'zeit' => time(),
+            'teachers' => $teachers, 'subjects' => $subjects, 'rooms' => $rooms,
+            'paare' => $paarKeys, 'fehler' => $fehler,
+        ];
+    }
+
+    $ergebnis = sync_anwenden($teachers, $subjects, $rooms, $paarKeys, $modus);
+    $ergebnis['zeitraum']    = ['von' => $von, 'bis' => $bis];
+    $ergebnis['fehler']      = $fehler;
+    $ergebnis['modus']       = $modus;
+    $ergebnis['datenquelle'] = $datenquelle;
 
     if ($modus === 'uebernehmen') {
+        unset($_SESSION['sync_cache']);
         $st = db()->prepare('INSERT INTO sync_protokoll (kuerzel, aktion, details) VALUES (?,?,?)');
         $st->execute([$_SESSION['kuerzel'] ?? '?', 'webuntis_sync',
                       json_encode($ergebnis, JSON_UNESCAPED_UNICODE)]);

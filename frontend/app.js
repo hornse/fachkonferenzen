@@ -732,10 +732,12 @@ function ansichtSync() {
                             <td>${r.lehrer_neu} / ${r.faecher_neu} / ${r.raeume_neu}</td></tr>
                     </tbody></table>
                     ${r.fehler.length ? `<div class="konflikt-kasten">${r.fehler.map(q).join('<br>')}</div>` : ''}
+                    ${modus === 'uebernehmen' && r.datenquelle === 'vorschau_zwischenspeicher'
+                        ? '<p class="untertitel">Übernommen aus den Daten der Vorschau (kein erneuter WebUntis-Abruf).</p>' : ''}
                 </div>`;
             if (modus === 'vorschau') {
                 knopfU.disabled = false;
-                meldung('Vorschau geladen – zum Anwenden „Übernehmen" klicken');
+                meldung('Vorschau geladen – „Übernehmen" schreibt genau diese Daten (schnell, ohne zweiten Abruf)');
             } else {
                 meldung('Sync übernommen');
             }
