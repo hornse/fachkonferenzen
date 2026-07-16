@@ -49,6 +49,9 @@ class WebUntisAuth
     public function getSubjects(): array { return $this->rpc('getSubjects'); }
     public function getRooms(): array    { return $this->rpc('getRooms'); }
 
+    /** JSESSIONID-Cookie der laufenden Session (für die interne REST-API). */
+    public function sessionCookie(): ?string { return $this->sessionCookie; }
+
     /**
      * Stundenplan eines Elements. type: 1=Klasse, 2=Lehrer, 3=Fach,
      * 4=Raum, 5=Schüler. Datumsformat: YYYYMMDD (int oder string).

@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__) . '/bootstrap.php';
 require dirname(__DIR__) . '/auth/WebUntisAuth.php';
+require dirname(__DIR__) . '/auth/WebUntisRest.php';
 require __DIR__ . '/sync.php';
 
 set_exception_handler(function (Throwable $e) {
@@ -254,9 +255,76 @@ if (($seg[0] ?? '') === 'lehrer-fach') {
 }
 
 // ============================================================
+// REST-SONDIERUNG (Beta): klopft die interne REST-API der
+// Instanz ab und liefert einen Bericht – schreibt NICHTS.
+// ============================================================
+if ($seg === ['sync', 'rest-sondierung'] && $method === 'POST') {
+    require_admin();
+    set_time_limit(0);
+    $b   = body_json();
+    $cfg = config('webuntis');
+
+    $wu = new WebUntisAuth($cfg['base_url'], $cfg['school'], $cfg['client']);
+    $bericht = ['instanz' => $cfg['base_url'], 'zeit' => date('c'), 'schritte' => []];
+    try {
+        $wu->authenticate((string)req($b, 'benutzername'), (string)req($b, 'passwort'));
+        $lehrerListe = $wu->getTeachers();
+        $fachListe   = $wu->getSubjects();
+        $tid = (int)($lehrerListe[0]['id'] ?? 0);
+        $sid = (int)($fachListe[0]['id'] ?? 0);
+        $bericht['beispiel'] = ['lehrer_id' => $tid, 'fach_id' => $sid];
+
+        $rest = new WebUntisRest($cfg['base_url'], $cfg['school']);
+        $rest->mitSessionCookie((string)$wu->sessionCookie());
+
+        $tokenOk = $rest->tokenHolen();
+        $bericht['schritte'][] = ['pfad' => '/WebUntis/api/token/new',
+            'ergebnis' => $tokenOk ? 'JWT erhalten' : 'KEIN JWT'];
+        if ($tokenOk) $rest->tenantErmitteln();
+
+        $von = date('Y-m-d', strtotime('monday this week'));
+        $bis = date('Y-m-d', strtotime('friday this week'));
+        $proben = [
+            ['/WebUntis/api/rest/view/v1/app/data', []],
+            ['/WebUntis/api/rest/view/v1/timetable/entries',
+                ['start' => $von, 'end' => $bis, 'format' => 2,
+                 'resourceType' => 'TEACHER', 'resources' => $tid,
+                 'periodTypes' => '', 'timetableType' => 'STANDARD']],
+            ['/WebUntis/api/rest/view/v1/timetable/entries',
+                ['start' => $von, 'end' => $bis, 'format' => 2,
+                 'resourceType' => 'SUBJECT', 'resources' => $sid,
+                 'periodTypes' => '', 'timetableType' => 'STANDARD']],
+            ['/WebUntis/api/rest/view/v1/timetable/filter',
+                ['resourceType' => 'TEACHER', 'timetableType' => 'STANDARD']],
+            ['/WebUntis/api/public/timetable/weekly/data',
+                ['elementType' => 2, 'elementId' => $tid,
+                 'date' => $von, 'formatId' => 1]],
+        ];
+        foreach ($proben as [$pfad, $query]) {
+            $r = $rest->get($pfad, $query);
+            $zeile = ['pfad' => $pfad, 'query' => $query, 'status' => $r['status'],
+                      'contentType' => $r['contentType']];
+            if ($r['json'] !== null) {
+                $zeile['json_schluessel'] = array_slice(array_keys($r['json']), 0, 12);
+                $ex = rest_paare_extrahieren($r['json']);
+                $zeile['extrahierte_paare']    = count($ex['paare']);
+                $zeile['paar_beispiele']       = array_slice(array_keys($ex['paare']), 0, 8);
+            } else {
+                $zeile['auszug'] = mb_substr($r['text'], 0, 300);
+            }
+            $bericht['schritte'][] = $zeile;
+        }
+    } finally {
+        $wu->logout();
+    }
+    json_out($bericht);
+}
+
+// ============================================================
 // WEBUNTIS-SYNC
 // Body: { benutzername, passwort, von: 'YYYY-MM-DD', bis: 'YYYY-MM-DD',
-//         modus: 'vorschau' | 'uebernehmen' }
+//         modus: 'vorschau' | 'uebernehmen',
+//         api: 'rpc' (Standard) | 'rest_beta' (experimentell) }
 // Zugangsdaten werden NICHT gespeichert, nur für diesen Sync benutzt.
 // ============================================================
 if ($seg === ['sync', 'webuntis'] && $method === 'POST') {
@@ -287,6 +355,7 @@ if ($seg === ['sync', 'webuntis'] && $method === 'POST') {
         $fehler     = $cache['fehler'];
         $datenquelle = 'vorschau_zwischenspeicher';
     } else {
+        $apiWahl = ($b['api'] ?? 'rpc') === 'rest_beta' ? 'rest_beta' : 'rpc';
         $wu = new WebUntisAuth($cfg['base_url'], $cfg['school'], $cfg['client']);
         try {
             $wu->authenticate((string)req($b, 'benutzername'), (string)req($b, 'passwort'));
@@ -295,28 +364,73 @@ if ($seg === ['sync', 'webuntis'] && $method === 'POST') {
             $rooms    = [];
             try { $rooms = $wu->getRooms(); } catch (Throwable $e) { /* optional */ }
 
-            // Lehrer-Fach-Paare aus dem Stundenplan: 1 Aufruf pro Fach (type=3)
             $paare  = [];   // "webuntisLehrerId|webuntisFachId" => true
             $fehler = [];
-            foreach ($subjects as $s) {
-                $sid = (int)$s['id'];
-                try {
-                    foreach ($wu->getTimetable(3, $sid, $von, $bis) as $periode) {
-                        if (($periode['lstype'] ?? 'ls') !== 'ls') continue; // nur Unterricht
-                        foreach (($periode['te'] ?? []) as $te) {
-                            $tid = (int)($te['id'] ?? 0);
-                            if ($tid > 0) $paare["$tid|$sid"] = true;
-                        }
+
+            if ($apiWahl === 'rest_beta') {
+                // ---- BETA: Paare über die interne REST-API (je Lehrkraft) ----
+                $klein = function_exists('mb_strtolower')
+                    ? fn(string $s) => mb_strtolower($s) : fn(string $s) => strtolower($s);
+                $fachIdVonKrz = [];
+                foreach ($subjects as $s) {
+                    if (($s['name'] ?? '') !== '') $fachIdVonKrz[$klein((string)$s['name'])] = (int)$s['id'];
+                }
+                $rest = new WebUntisRest($cfg['base_url'], $cfg['school']);
+                $rest->mitSessionCookie((string)$wu->sessionCookie());
+                if (!$rest->tokenHolen()) {
+                    json_err('REST-Beta: kein JWT von /api/token/new erhalten – bitte zuerst die Sondierung ausführen', 502);
+                }
+                $rest->tenantErmitteln();
+                $vonIso = substr($von, 0, 4) . '-' . substr($von, 4, 2) . '-' . substr($von, 6, 2);
+                $bisIso = substr($bis, 0, 4) . '-' . substr($bis, 4, 2) . '-' . substr($bis, 6, 2);
+                $unbekannteFaecher = [];
+                foreach ($teachers as $t) {
+                    $tid = (int)$t['id'];
+                    $r = $rest->get('/WebUntis/api/rest/view/v1/timetable/entries', [
+                        'start' => $vonIso, 'end' => $bisIso, 'format' => 2,
+                        'resourceType' => 'TEACHER', 'resources' => $tid,
+                        'periodTypes' => '', 'timetableType' => 'STANDARD']);
+                    if ($r['status'] !== 200 || $r['json'] === null) {
+                        $fehler[] = 'REST Lehrer ' . ($t['name'] ?? $tid) . ': HTTP ' . $r['status'];
+                        continue;
                     }
-                } catch (Throwable $e) {
-                    $fehler[] = 'Fach ' . ($s['name'] ?? $sid) . ': ' . $e->getMessage();
+                    $ex = rest_paare_extrahieren($r['json']);
+                    foreach (array_keys($ex['paare']) as $paar) {
+                        [, $fachKrz] = explode('|', $paar, 2);
+                        $fid = $fachIdVonKrz[$klein($fachKrz)] ?? null;
+                        if ($fid === null) { $unbekannteFaecher[$fachKrz] = true; continue; }
+                        $paare["$tid|$fid"] = true;
+                    }
+                }
+                if ($unbekannteFaecher !== []) {
+                    $fehler[] = 'REST: Fachkürzel ohne Treffer in getSubjects(): '
+                        . implode(', ', array_slice(array_keys($unbekannteFaecher), 0, 15));
+                }
+                if ($paare === [] ) {
+                    json_err('REST-Beta lieferte keine Paare – Ergebnis der Sondierung bitte an die Entwicklung geben. Der Standard-Sync (JSON-RPC) funktioniert unverändert.', 502);
+                }
+            } else {
+                // ---- Standard: Paare aus dem Stundenplan, 1 Aufruf pro Fach (type=3) ----
+                foreach ($subjects as $s) {
+                    $sid = (int)$s['id'];
+                    try {
+                        foreach ($wu->getTimetable(3, $sid, $von, $bis) as $periode) {
+                            if (($periode['lstype'] ?? 'ls') !== 'ls') continue; // nur Unterricht
+                            foreach (($periode['te'] ?? []) as $te) {
+                                $tid = (int)($te['id'] ?? 0);
+                                if ($tid > 0) $paare["$tid|$sid"] = true;
+                            }
+                        }
+                    } catch (Throwable $e) {
+                        $fehler[] = 'Fach ' . ($s['name'] ?? $sid) . ': ' . $e->getMessage();
+                    }
                 }
             }
             $paarKeys = array_keys($paare);
         } finally {
             $wu->logout();
         }
-        $datenquelle = 'webuntis_live';
+        $datenquelle = $apiWahl === 'rest_beta' ? 'webuntis_rest_beta' : 'webuntis_live';
     }
 
     if ($modus === 'vorschau') {

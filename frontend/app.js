@@ -697,9 +697,16 @@ function ansichtSync() {
                 <label>Von</label><input type="date" id="sy-von" value="${iso(heute)}">
                 <label>Bis</label><input type="date" id="sy-bis" value="${iso(in14Tagen)}">
             </div></div>
+            <label>API</label>
+            <p style="margin-top:.2rem">
+                <label style="display:inline"><input type="radio" name="sy-api" value="rpc" checked style="width:auto"> Standard (JSON-RPC, offiziell)</label>
+                &nbsp;&nbsp;
+                <label style="display:inline"><input type="radio" name="sy-api" value="rest_beta" style="width:auto"> Beta: interne REST-API (experimentell)</label>
+            </p>
             <p>
                 <button type="button" id="sy-vorschau">Vorschau abrufen</button>
                 <button type="button" id="sy-uebernehmen" class="sekundaer" disabled>Übernehmen</button>
+                <button type="button" id="sy-sondierung" class="sekundaer">REST-Sondierung ausführen</button>
             </p>
         </div>
         <div id="sy-ergebnis"></div>`;
@@ -715,6 +722,7 @@ function ansichtSync() {
                 passwort: document.getElementById('sy-passwort').value,
                 von: document.getElementById('sy-von').value,
                 bis: document.getElementById('sy-bis').value,
+                api: document.querySelector('[name=sy-api]:checked').value,
                 modus,
             }});
             document.getElementById('sy-ergebnis').innerHTML = `
@@ -760,6 +768,38 @@ function ansichtSync() {
     };
     document.getElementById('sy-vorschau').onclick = () => lauf('vorschau');
     document.getElementById('sy-uebernehmen').onclick = () => lauf('uebernehmen');
+
+    document.getElementById('sy-sondierung').onclick = async () => {
+        const knopf = document.getElementById('sy-sondierung');
+        knopf.disabled = true; knopf.textContent = 'Sondierung läuft …';
+        try {
+            const r = await api('/sync/rest-sondierung', { method: 'POST', body: {
+                benutzername: document.getElementById('sy-benutzer').value.trim(),
+                passwort: document.getElementById('sy-passwort').value,
+            }});
+            const bericht = JSON.stringify(r, null, 2);
+            document.getElementById('sy-ergebnis').innerHTML = `
+                <div class="karte">
+                    <h2 style="margin-top:0">REST-Sondierung</h2>
+                    <table><thead><tr><th>Endpunkt</th><th>Status</th><th>Paare erkannt</th><th>Details</th></tr></thead>
+                    <tbody>${(r.schritte || []).map(z => `
+                        <tr>
+                            <td style="word-break:break-all">${q(z.pfad)}</td>
+                            <td>${z.status ?? q(z.ergebnis || '')}</td>
+                            <td>${z.extrahierte_paare ?? '–'}</td>
+                            <td>${q((z.json_schluessel || []).join(', ') || (z.auszug || '').slice(0, 80))}</td>
+                        </tr>`).join('')}
+                    </tbody></table>
+                    <p>Vollständiger Bericht (zum Kopieren für die Weiterentwicklung):</p>
+                    <textarea rows="10" readonly onclick="this.select()">${q(bericht)}</textarea>
+                </div>`;
+            meldung('Sondierung abgeschlossen');
+        } catch (e) {
+            meldung(e.message, true);
+        } finally {
+            knopf.disabled = false; knopf.textContent = 'REST-Sondierung ausführen';
+        }
+    };
 }
 
 // ------------------------------------------------------------

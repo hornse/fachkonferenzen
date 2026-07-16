@@ -1,5 +1,17 @@
 # Changelog – Fachkonferenzen FRG
 
+## v0.2.0-beta (Juli 2026) – Interne REST-API (experimentell)
+
+- REST-Sondierung: Admin-Werkzeug auf der Sync-Seite, das die interne
+  REST-API der eigenen Instanz abklopft (token/new, app/data,
+  timetable/entries je TEACHER/SUBJECT, timetable/filter, weekly/data)
+  und einen kopierbaren Bericht liefert – schreibt nichts
+- Neuer Sync-Modus „Beta: interne REST-API": Zuordnungen über
+  /api/rest/view/v1/timetable/entries je Lehrkraft, defensiver Extraktor
+  (position1/position2, ignoriert removed-Einträge), sauberer Abbruch
+  mit Hinweis, falls die Instanz anders antwortet
+- Standard bleibt JSON-RPC; Beta ist explizit als experimentell markiert
+
 ## v0.1.3 (Juli 2026) – Sync robust gegen doppelte Kürzel
 
 - Fix: Abbruch „Duplicate entry (B)" beim Übernehmen – doppelte Kürzel aus
