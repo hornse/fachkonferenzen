@@ -455,11 +455,24 @@ async function ansichtStammdaten() {
     if (stammdatenTab === 'zuordnungen')  return tabZuordnungen(ziel);
 }
 
-async function tabFaecher(ziel) {
+async function tabFaecher(ziel, suche = '', nurAktive = false) {
     const [faecher, gruppen] = await Promise.all([api('/faecher'), api('/fachgruppen')]);
-    ziel.innerHTML = `<div class="karte"><table>
+    const s = suche.trim().toLowerCase();
+    const gefiltert = faecher.filter(f =>
+        (!nurAktive || Number(f.aktiv) === 1) &&
+        (s === '' || f.kuerzel.toLowerCase().includes(s) || f.name.toLowerCase().includes(s)));
+
+    ziel.innerHTML = `<div class="karte">
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.8rem">
+            <input id="f-suche" class="klein" style="min-width:220px" placeholder="Suchen (Kürzel oder Name) …" value="${q(suche)}">
+            <label style="display:inline;margin:0"><input type="checkbox" id="f-nuraktive" style="width:auto" ${nurAktive ? 'checked' : ''}> nur aktive</label>
+            <span style="flex:1"></span>
+            <button type="button" class="klein sekundaer" id="f-bulk-an">Alle ${gefiltert.length} gefilterten aktivieren</button>
+            <button type="button" class="klein sekundaer" id="f-bulk-aus">… deaktivieren</button>
+        </div>
+        <table>
         <thead><tr><th>Kürzel</th><th>Name</th><th>Fachgruppe</th><th>Aktiv</th></tr></thead>
-        <tbody>${faecher.map(f => `
+        <tbody>${gefiltert.map(f => `
             <tr data-id="${f.id}">
                 <td>${q(f.kuerzel)}</td><td>${q(f.name)}</td>
                 <td><select class="klein" data-feld="gruppe_id">
@@ -467,11 +480,33 @@ async function tabFaecher(ziel) {
                     ${gruppen.map(g => `<option value="${g.id}" ${String(f.gruppe_id) === String(g.id) ? 'selected' : ''}>${q(g.name)}</option>`).join('')}
                 </select></td>
                 <td><input type="checkbox" style="width:auto" data-feld="aktiv" ${Number(f.aktiv) === 1 ? 'checked' : ''}></td>
-            </tr>`).join('') || '<tr><td colspan="4" class="leer">Noch keine Fächer – zuerst WebUntis-Sync ausführen.</td></tr>'}
+            </tr>`).join('') || '<tr><td colspan="4" class="leer">Keine Treffer.</td></tr>'}
         </tbody></table>
-        <p class="untertitel" style="margin-bottom:0">Fächer in derselben Fachgruppe tagen als <em>eine</em> Konferenz
-        (z. B. Religion ev./kath., Diff-Kurse).</p></div>`;
-    ziel.querySelectorAll('select,[type=checkbox]').forEach(el => el.onchange = async () => {
+        <p class="untertitel" style="margin-bottom:0">Nur <strong>aktive</strong> Fächer werden bei „Alle Fächer &amp; Gruppen anlegen"
+        zu Konferenzen. Fächer in derselben Fachgruppe tagen als <em>eine</em> Konferenz. Empfohlener Ablauf nach dem
+        ersten Sync: alles deaktivieren, dann die Fachschafts-Fächer per Suche aktivieren.</p></div>`;
+
+    const neuZeichnen = () => tabFaecher(ziel,
+        document.getElementById('f-suche').value,
+        document.getElementById('f-nuraktive').checked);
+    let tippTimer;
+    document.getElementById('f-suche').oninput = () => {
+        clearTimeout(tippTimer); tippTimer = setTimeout(neuZeichnen, 250);
+    };
+    document.getElementById('f-nuraktive').onchange = neuZeichnen;
+
+    const bulk = async (aktiv) => {
+        if (!gefiltert.length) return;
+        if (!confirm(`${gefiltert.length} Fächer ${aktiv ? 'aktivieren' : 'deaktivieren'}?`)) return;
+        await api('/faecher/bulk-aktiv', { method: 'POST',
+            body: { ids: gefiltert.map(f => f.id), aktiv } });
+        meldung('Gespeichert');
+        neuZeichnen();
+    };
+    document.getElementById('f-bulk-an').onclick  = () => bulk(1);
+    document.getElementById('f-bulk-aus').onclick = () => bulk(0);
+
+    ziel.querySelectorAll('select,[type=checkbox][data-feld]').forEach(el => el.onchange = async () => {
         const id = el.closest('tr').dataset.id;
         const wert = el.type === 'checkbox' ? (el.checked ? 1 : 0)
             : (el.value === '' ? null : parseInt(el.value, 10));
@@ -505,18 +540,49 @@ async function tabGruppen(ziel) {
     });
 }
 
-async function tabLehrer(ziel) {
+async function tabLehrer(ziel, suche = '') {
     const lehrer = await api('/lehrer');
-    ziel.innerHTML = `<div class="karte"><table>
+    const s = suche.trim().toLowerCase();
+    const gefiltert = lehrer.filter(l => s === ''
+        || l.kuerzel.toLowerCase().includes(s)
+        || (l.vorname + ' ' + l.nachname).toLowerCase().includes(s));
+
+    ziel.innerHTML = `<div class="karte">
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.8rem">
+            <input id="l-suche" class="klein" style="min-width:220px" placeholder="Suchen (Kürzel oder Name) …" value="${q(suche)}">
+            <span style="flex:1"></span>
+            <button type="button" class="klein sekundaer" id="l-bulk-an">Alle ${gefiltert.length} gefilterten aktivieren</button>
+            <button type="button" class="klein sekundaer" id="l-bulk-aus">… deaktivieren</button>
+        </div>
+        <table>
         <thead><tr><th>Kürzel</th><th>Vorname</th><th>Nachname</th><th>WebUntis-ID</th><th>Aktiv</th></tr></thead>
-        <tbody>${lehrer.map(l => `
+        <tbody>${gefiltert.map(l => `
             <tr data-id="${l.id}">
                 <td>${q(l.kuerzel)}</td><td>${q(l.vorname)}</td><td>${q(l.nachname)}</td>
                 <td>${l.webuntis_id ?? '<span class="leer">–</span>'}</td>
                 <td><input type="checkbox" style="width:auto" data-feld="aktiv" ${Number(l.aktiv) === 1 ? 'checked' : ''}></td>
-            </tr>`).join('') || '<tr><td colspan="5" class="leer">Noch keine Lehrkräfte – zuerst WebUntis-Sync ausführen.</td></tr>'}
-        </tbody></table></div>`;
-    ziel.querySelectorAll('[type=checkbox]').forEach(el => el.onchange = async () => {
+            </tr>`).join('') || '<tr><td colspan="5" class="leer">Keine Treffer.</td></tr>'}
+        </tbody></table>
+        <p class="untertitel" style="margin-bottom:0">Inaktive Lehrkräfte (z. B. Dummy-Konten) zählen nicht für den
+        Konfliktgraphen und erzeugen keine Schein-Konflikte.</p></div>`;
+
+    const neuZeichnen = () => tabLehrer(ziel, document.getElementById('l-suche').value);
+    let tippTimer;
+    document.getElementById('l-suche').oninput = () => {
+        clearTimeout(tippTimer); tippTimer = setTimeout(neuZeichnen, 250);
+    };
+    const bulk = async (aktiv) => {
+        if (!gefiltert.length) return;
+        if (!confirm(`${gefiltert.length} Lehrkräfte ${aktiv ? 'aktivieren' : 'deaktivieren'}?`)) return;
+        await api('/lehrer/bulk-aktiv', { method: 'POST',
+            body: { ids: gefiltert.map(l => l.id), aktiv } });
+        meldung('Gespeichert');
+        neuZeichnen();
+    };
+    document.getElementById('l-bulk-an').onclick  = () => bulk(1);
+    document.getElementById('l-bulk-aus').onclick = () => bulk(0);
+
+    ziel.querySelectorAll('[type=checkbox][data-feld]').forEach(el => el.onchange = async () => {
         await api('/lehrer/' + el.closest('tr').dataset.id, { method: 'PATCH',
             body: { aktiv: el.checked ? 1 : 0 } });
         meldung('Gespeichert');
@@ -657,6 +723,10 @@ function ansichtSync() {
                     <table><tbody>
                         <tr><td>Zuordnungen laut Stundenplan</td><td>${r.zuordnungen_gesamt_webuntis}</td></tr>
                         <tr><td>Neue Zuordnungen</td><td>${r.zuordnungen_neu}</td></tr>
+                        ${r.zuordnungen_unaufgeloest
+                            ? `<tr><td>Zuordnungen zu noch nicht angelegten Lehrkräften/Fächern
+                                   <span class="leer">(werden beim Übernehmen mit angelegt)</span></td>
+                                   <td>${r.zuordnungen_unaufgeloest}</td></tr>` : ''}
                         <tr><td>Entfallende Zuordnungen (Quelle webuntis)</td><td>${r.zuordnungen_entfernt}</td></tr>
                         <tr><td>Neue Lehrkräfte / Fächer / Räume</td>
                             <td>${r.lehrer_neu} / ${r.faecher_neu} / ${r.raeume_neu}</td></tr>

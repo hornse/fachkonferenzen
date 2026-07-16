@@ -142,6 +142,9 @@ if (($seg[0] ?? '') === 'lehrer') {
     if ($method === 'GET' && count($seg) === 1) {
         json_out(db()->query('SELECT * FROM lehrer ORDER BY kuerzel')->fetchAll());
     }
+    if ($method === 'POST' && $seg === ['lehrer', 'bulk-aktiv']) {
+        bulk_aktiv('lehrer');
+    }
     if ($method === 'POST' && count($seg) === 1) {
         $b = body_json();
         $st = db()->prepare('INSERT INTO lehrer (kuerzel, vorname, nachname, webuntis_id, aktiv)
@@ -164,6 +167,9 @@ if (($seg[0] ?? '') === 'faecher') {
               ORDER BY f.name')->fetchAll());
     }
     require_admin();
+    if ($method === 'POST' && $seg === ['faecher', 'bulk-aktiv']) {
+        bulk_aktiv('faecher');
+    }
     if ($method === 'POST' && count($seg) === 1) {
         $b = body_json();
         $st = db()->prepare('INSERT INTO faecher (kuerzel, name, webuntis_id, gruppe_id, aktiv)
@@ -1019,6 +1025,18 @@ function req(array $b, string $key)
 {
     if (!isset($b[$key]) || $b[$key] === '') json_err("Feld '$key' fehlt");
     return $b[$key];
+}
+
+/** Massenaktion: aktiv-Flag für viele Zeilen setzen. Body: {ids: [], aktiv: 0|1} */
+function bulk_aktiv(string $tabelle): void
+{
+    $b = body_json();
+    $ids = array_values(array_filter(array_map('intval', (array)($b['ids'] ?? []))));
+    $aktiv = (int)($b['aktiv'] ?? 0) === 1 ? 1 : 0;
+    if ($ids === []) json_err('ids fehlt oder leer');
+    $in = implode(',', array_fill(0, count($ids), '?'));
+    db()->prepare("UPDATE `$tabelle` SET aktiv = $aktiv WHERE id IN ($in)")->execute($ids);
+    json_out(['geaendert' => count($ids), 'aktiv' => $aktiv]);
 }
 
 function patch_row(string $tabelle, int $id, array $erlaubteFelder): void
