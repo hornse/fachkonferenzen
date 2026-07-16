@@ -1,0 +1,5 @@
+backend/config.php
+bundles/
+.DS_Store
+.idea/
+*.log

@@ -1,0 +1,172 @@
+/* ============================================================
+   Fachkonferenzen FRG – Gestaltung
+   Leitidee: Kreide auf Tafel. Slot-Köpfe und Login tragen das
+   Tafelgrün, alles andere bleibt ruhiges Papier.
+   ============================================================ */
+
+:root {
+    --tafel:       #2E5B4C;   /* Tafelgrün */
+    --tafel-tief:  #22463A;
+    --kreide:      #FCFDF9;
+    --papier:      #F4F5F0;
+    --karte:       #FFFFFF;
+    --tinte:       #24312B;
+    --tinte-blass: #66746D;
+    --linie:       #D9DED6;
+    --gold:        #B98A2F;   /* Akzent: Hinweise, aktive Zustände */
+    --warn:        #B3402A;   /* Konflikte */
+    --warn-hell:   #F7E4DF;
+    --ok:          #3E7A5E;
+    --radius: 6px;
+    --schatten: 0 1px 3px rgba(36, 49, 43, .12);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+    margin: 0;
+    background: var(--papier);
+    color: var(--tinte);
+    font: 15px/1.55 -apple-system, "Segoe UI", system-ui, sans-serif;
+}
+
+h1, h2, h3, .marke-text {
+    font-family: "Iowan Old Style", "Palatino", Georgia, serif;
+    letter-spacing: .01em;
+}
+h1 { font-size: 1.7rem; margin: 0 0 .35rem; }
+h2 { font-size: 1.2rem; margin: 1.6rem 0 .6rem; }
+h1 + .untertitel { color: var(--tinte-blass); margin: 0 0 1.4rem; }
+
+a { color: var(--tafel); }
+
+/* --- Kopf --------------------------------------------------- */
+.kopf {
+    background: var(--tafel);
+    color: var(--kreide);
+    border-bottom: 3px solid var(--tafel-tief);
+}
+.kopf-innen {
+    max-width: 1100px; margin: 0 auto; padding: .6rem 1.2rem;
+    display: flex; align-items: center; gap: 1.6rem; flex-wrap: wrap;
+}
+.marke { display: flex; align-items: center; gap: .6rem; color: var(--kreide); text-decoration: none; }
+.marke-symbol {
+    display: inline-grid; place-items: center;
+    width: 2rem; height: 2rem; border: 1.5px solid rgba(252,253,249,.7);
+    border-radius: 50%; font-family: Georgia, serif; font-size: 1.1rem;
+}
+.marke-text { font-size: 1.05rem; line-height: 1.15; display: flex; flex-direction: column; }
+.marke-text small { font-family: -apple-system, system-ui, sans-serif; font-size: .68rem; opacity: .75; letter-spacing: .04em; }
+
+.nav { display: flex; gap: .2rem; flex-wrap: wrap; }
+.nav a {
+    color: var(--kreide); text-decoration: none; opacity: .82;
+    padding: .35rem .7rem; border-radius: var(--radius);
+}
+.nav a:hover { opacity: 1; background: rgba(252,253,249,.1); }
+.nav a.aktiv { opacity: 1; background: rgba(252,253,249,.16); }
+
+.benutzer { margin-left: auto; display: flex; align-items: center; gap: .8rem; font-size: .85rem; }
+.benutzer .rolle { opacity: .7; }
+.benutzer button { background: none; border: 1px solid rgba(252,253,249,.5); color: var(--kreide); }
+.benutzer button:hover { background: rgba(252,253,249,.12); }
+
+/* --- Inhalt ------------------------------------------------- */
+.inhalt { max-width: 1100px; margin: 0 auto; padding: 1.8rem 1.2rem 4rem; }
+
+.karte {
+    background: var(--karte); border: 1px solid var(--linie);
+    border-radius: var(--radius); box-shadow: var(--schatten);
+    padding: 1.1rem 1.3rem; margin-bottom: 1rem;
+}
+
+.raster { display: grid; gap: 1rem; }
+.raster.zweispaltig { grid-template-columns: 1fr 1fr; }
+@media (max-width: 800px) { .raster.zweispaltig { grid-template-columns: 1fr; } }
+
+/* --- Formulare ---------------------------------------------- */
+label { display: block; font-size: .8rem; color: var(--tinte-blass); margin: .7rem 0 .2rem; }
+input, select, textarea {
+    width: 100%; padding: .5rem .6rem; font: inherit;
+    border: 1px solid var(--linie); border-radius: var(--radius);
+    background: var(--kreide); color: var(--tinte);
+}
+input:focus, select:focus, textarea:focus, button:focus-visible {
+    outline: 2px solid var(--gold); outline-offset: 1px;
+}
+select.klein, input.klein { width: auto; padding: .25rem .4rem; font-size: .85rem; }
+
+button {
+    font: inherit; cursor: pointer; padding: .5rem .9rem;
+    border: 1px solid var(--tafel); border-radius: var(--radius);
+    background: var(--tafel); color: var(--kreide);
+}
+button:hover { background: var(--tafel-tief); }
+button.sekundaer { background: transparent; color: var(--tafel); }
+button.sekundaer:hover { background: var(--papier); }
+button.gefahr { background: transparent; border-color: var(--warn); color: var(--warn); }
+button.klein { padding: .25rem .55rem; font-size: .82rem; }
+button:disabled { opacity: .5; cursor: default; }
+
+/* --- Tabellen ----------------------------------------------- */
+table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+th, td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid var(--linie); vertical-align: top; }
+th { font-size: .74rem; text-transform: uppercase; letter-spacing: .06em; color: var(--tinte-blass); font-weight: 600; }
+tr:hover td { background: var(--papier); }
+
+/* --- Plan-Raster (Signaturelement) --------------------------- */
+.slot-block { margin-bottom: 1rem; border: 1px solid var(--linie); border-radius: var(--radius); overflow: hidden; background: var(--karte); }
+.slot-kopf {
+    background: var(--tafel); color: var(--kreide);
+    padding: .5rem .9rem; display: flex; gap: .9rem; align-items: baseline; flex-wrap: wrap;
+    font-family: "Iowan Old Style", Georgia, serif;
+}
+.slot-kopf .zeit { font-size: .85rem; opacity: .85; font-family: -apple-system, system-ui, sans-serif; }
+.slot-kopf .werkzeuge { margin-left: auto; }
+.slot-inhalt { padding: .7rem .9rem; display: flex; gap: .5rem; flex-wrap: wrap; min-height: 2.6rem; }
+
+.chip {
+    display: inline-flex; align-items: center; gap: .45rem;
+    border: 1px solid var(--linie); border-radius: 999px;
+    background: var(--kreide); padding: .28rem .75rem; font-size: .88rem;
+}
+.chip .raum { color: var(--tinte-blass); font-size: .78rem; }
+.chip.konflikt { border-color: var(--warn); background: var(--warn-hell); }
+.chip button { border: none; background: none; color: var(--tinte-blass); padding: 0 .1rem; font-size: .95rem; }
+.chip button:hover { color: var(--warn); background: none; }
+
+.konflikt-kasten { border-left: 4px solid var(--warn); background: var(--warn-hell); padding: .7rem 1rem; border-radius: var(--radius); margin: .8rem 0; }
+.ok-kasten { border-left: 4px solid var(--ok); background: #E7F0EA; padding: .7rem 1rem; border-radius: var(--radius); margin: .8rem 0; }
+.hinweis-kasten { border-left: 4px solid var(--gold); background: #F6EEDD; padding: .7rem 1rem; border-radius: var(--radius); margin: .8rem 0; }
+
+.status-marke { font-size: .74rem; padding: .15rem .55rem; border-radius: 999px; border: 1px solid var(--linie); color: var(--tinte-blass); }
+.status-marke.veroeffentlicht { border-color: var(--ok); color: var(--ok); }
+
+/* --- Login --------------------------------------------------- */
+.login-buehne { min-height: 60vh; display: grid; place-items: center; }
+.login-karte { width: min(400px, 92vw); }
+.login-karte .karte { padding: 1.6rem 1.8rem 1.8rem; }
+.login-tabs { display: flex; gap: .3rem; margin-bottom: 1rem; }
+.login-tabs button { flex: 1; }
+.login-tabs button.inaktiv { background: transparent; color: var(--tinte-blass); border-color: var(--linie); }
+
+/* --- Meldungen ----------------------------------------------- */
+.meldung {
+    position: fixed; left: 50%; bottom: 1.5rem; transform: translateX(-50%);
+    background: var(--tinte); color: var(--kreide);
+    padding: .6rem 1.2rem; border-radius: var(--radius); box-shadow: var(--schatten);
+    max-width: 90vw; z-index: 50;
+}
+.meldung.fehler { background: var(--warn); }
+
+.leer { color: var(--tinte-blass); font-style: italic; }
+
+.tab-leiste { display: flex; gap: .3rem; border-bottom: 1px solid var(--linie); margin-bottom: 1rem; flex-wrap: wrap; }
+.tab-leiste button { border: none; background: none; color: var(--tinte-blass); border-bottom: 2px solid transparent; border-radius: 0; }
+.tab-leiste button:hover { background: none; color: var(--tinte); }
+.tab-leiste button.aktiv { color: var(--tafel); border-bottom-color: var(--tafel); font-weight: 600; }
+
+@media (prefers-reduced-motion: no-preference) {
+    .karte, .slot-block { transition: box-shadow .15s ease; }
+}
