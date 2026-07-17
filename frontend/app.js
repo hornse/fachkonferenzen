@@ -786,7 +786,7 @@ function ansichtSync() {
                         <tr>
                             <td style="word-break:break-all">${q(z.pfad)}</td>
                             <td>${z.status ?? q(z.ergebnis || '')}</td>
-                            <td>${z.extrahierte_paare ?? '–'}</td>
+                            <td>${z.extrahierte_paare ?? z.extrahierte_faecher ?? '–'}</td>
                             <td>${q((z.json_schluessel || []).join(', ') || (z.auszug || '').slice(0, 80))}</td>
                         </tr>`).join('')}
                     </tbody></table>

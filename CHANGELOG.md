@@ -1,5 +1,16 @@
 # Changelog – Fachkonferenzen FRG
 
+## v0.3.0-beta (Juli 2026) – REST-Modul ausgelagert, entries-Strategie
+
+- Neues wiederverwendbares Modul hornse/webuntis-client-php (WebUntisAuth,
+  WebUntisRest, Extraktoren, Offline-Tests, dokumentiertes Sondierungswissen);
+  App nutzt vendored Kopien in backend/auth/ (neu: extractors.php)
+- Beta-Sync: moderner Endpunkt timetable/entries (OHNE format-Parameter),
+  1 Aufruf je Lehrkraft über den gesamten Zeitraum; Elemente typbasiert
+  ausgewertet (SUBJECT/TEACHER), Nicht-Unterricht und Vertretungen gefiltert,
+  Kopplungen über explizite TEACHER-Elemente; automatischer Fallback auf
+  weekly/data, falls entries nicht verfügbar
+
 ## v0.2.3-beta (Juli 2026) – Sondierung: Format-Deskriptor
 
 - Befund: entries antwortet OHNE format-Parameter mit 200; die Bedeutung von

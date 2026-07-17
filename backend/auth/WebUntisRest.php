@@ -1,13 +1,13 @@
 <?php
 // ============================================================
 // WebUntisRest.php – Client für die INTERNE WebUntis-REST-API
+// VENDORED aus hornse/webuntis-client-php – dort ändern, hierher kopieren!
 //
-// ⚠️ BETA / UNDOKUMENTIERT: Diese API ist nicht offiziell
-// freigegeben und kann sich mit jedem WebUntis-Update ändern.
-// Der offizielle JSON-RPC-Weg bleibt der Standard; dieses Modul
-// ist ein Experiment mit eingebauter Sondierung.
+// ⚠️ UNDOKUMENTIERTE API: kann sich mit jedem WebUntis-Update
+// ändern. Für Produktivbetrieb den offiziellen JSON-RPC-Weg
+// (WebUntisAuth) bevorzugen und diesen Client als Zusatz nutzen.
 //
-// Ablauf (Stand der Community-Dokumentation, Juli 2026):
+// Ablauf:
 //  1. Session per JSON-RPC authenticate -> JSESSIONID-Cookie
 //  2. GET /WebUntis/api/token/new  (Cookie) -> JWT als Klartext
 //  3. REST-Aufrufe mit "Authorization: Bearer <JWT>" und
@@ -96,116 +96,4 @@ class WebUntisRest
         return ['status' => $status, 'contentType' => $ct,
                 'text' => $text, 'json' => is_array($json) ? $json : null];
     }
-}
-
-// ------------------------------------------------------------
-// Liefert den ersten Eintrag mit position1 aus einer beliebig
-// verschachtelten entries-Antwort (für Sondierungs-Berichte).
-// ------------------------------------------------------------
-function rest_erster_eintrag($json): ?array
-{
-    $treffer = null;
-    $lauf = function ($knoten) use (&$lauf, &$treffer): void {
-        if ($treffer !== null || !is_array($knoten)) return;
-        if (isset($knoten['position1'])) { $treffer = $knoten; return; }
-        foreach ($knoten as $wert) {
-            if (is_array($wert)) $lauf($wert);
-        }
-    };
-    $lauf($json);
-    return $treffer;
-}
-
-// ------------------------------------------------------------
-// Extraktor für den Legacy-Endpunkt /api/public/timetable/weekly/data
-// (formatId=1). Perioden liegen unter data.result.data.elementPeriods,
-// jede Periode hat ein elements-Array mit {type, id, orgId}:
-//   type 2 = Lehrkraft, type 3 = Fach.
-// Bei Vertretungen steht in id die Vertretung und in orgId die
-// reguläre Lehrkraft -> für "wer unterrichtet was" zählt orgId.
-// Rückgabe: ['paare' => ['lehrerWuId|fachWuId' => true],
-//            'perioden' => n, 'namen' => [typ][id] => Kürzel]
-// ------------------------------------------------------------
-function rest_paare_aus_weekly($json): array
-{
-    $paare = [];
-    $perioden = 0;
-    $namen = [2 => [], 3 => []];
-
-    $daten = $json['data']['result']['data'] ?? null;
-    if (!is_array($daten)) return ['paare' => [], 'perioden' => 0, 'namen' => $namen];
-
-    // Auflösungstabelle (für Berichte/Diagnose)
-    foreach (($daten['elements'] ?? []) as $el) {
-        $typ = (int)($el['type'] ?? 0);
-        if (($typ === 2 || $typ === 3) && isset($el['id'])) {
-            $namen[$typ][(int)$el['id']] = (string)($el['name'] ?? '');
-        }
-    }
-
-    foreach (($daten['elementPeriods'] ?? []) as $periodenListe) {
-        foreach ((array)$periodenListe as $periode) {
-            $lehrer = []; $faecher = [];
-            foreach (($periode['elements'] ?? []) as $el) {
-                $typ = (int)($el['type'] ?? 0);
-                // reguläre Zuordnung: orgId (falls Vertretung), sonst id
-                $id  = (int)(($el['orgId'] ?? 0) > 0 ? $el['orgId'] : ($el['id'] ?? 0));
-                if ($id <= 0) continue;
-                if ($typ === 2) $lehrer[$id] = true;
-                if ($typ === 3) $faecher[$id] = true;
-            }
-            if ($lehrer === [] || $faecher === []) continue;
-            $perioden++;
-            foreach (array_keys($lehrer) as $l) {
-                foreach (array_keys($faecher) as $f) $paare["$l|$f"] = true;
-            }
-        }
-    }
-    return ['paare' => $paare, 'perioden' => $perioden, 'namen' => $namen];
-}
-
-function rest_paare_extrahieren($daten): array
-{
-    $paare = [];
-    $eintraege = 0;
-
-    $shortNames = function ($positionen): array {
-        $namen = [];
-        foreach ((array)$positionen as $p) {
-            foreach (['current', 'removed'] as $zustand) {
-                // "removed" bewusst NICHT werten – nur aktueller Stand
-                if ($zustand === 'removed') continue;
-                $sn = $p[$zustand]['shortName'] ?? $p['shortName'] ?? null;
-                if (is_string($sn) && $sn !== '') $namen[] = $sn;
-            }
-        }
-        return $namen;
-    };
-
-    $lauf = function ($knoten) use (&$lauf, &$paare, &$eintraege, $shortNames): void {
-        if (!is_array($knoten)) return;
-
-        // Variante A: modernes entries-Format (position1/position2)
-        if (isset($knoten['position1']) && isset($knoten['position2'])) {
-            $lehrer  = $shortNames($knoten['position1']);
-            $faecher = $shortNames($knoten['position2']);
-            if ($lehrer !== [] && $faecher !== []) {
-                $eintraege++;
-                foreach ($lehrer as $l) {
-                    foreach ($faecher as $f) $paare["$l|$f"] = true;
-                }
-            }
-        }
-        // Variante B: Legacy weekly/data-Format (elements mit type)
-        // dort stehen Perioden mit "elements": [{type:2,id..},{type:3,..}]
-        // und die Kürzel in einer separaten elementMap -> hier nicht
-        // auflösbar, wird von der Sondierung nur gemeldet.
-
-        foreach ($knoten as $wert) {
-            if (is_array($wert)) $lauf($wert);
-        }
-    };
-    $lauf($daten);
-
-    return ['paare' => $paare, 'eintraege' => $eintraege];
 }

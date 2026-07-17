@@ -9,6 +9,7 @@ declare(strict_types=1);
 require dirname(__DIR__) . '/bootstrap.php';
 require dirname(__DIR__) . '/auth/WebUntisAuth.php';
 require dirname(__DIR__) . '/auth/WebUntisRest.php';
+require dirname(__DIR__) . '/auth/extractors.php';
 require __DIR__ . '/sync.php';
 
 set_exception_handler(function (Throwable $e) {
@@ -324,9 +325,10 @@ if ($seg === ['sync', 'rest-sondierung'] && $method === 'POST') {
                     }
                     $zeile['paar_beispiele'] = $beispiele;
                 } else {
-                    $ex = rest_paare_extrahieren($r['json']);
-                    $zeile['extrahierte_paare'] = count($ex['paare']);
-                    $zeile['paar_beispiele']    = array_slice(array_keys($ex['paare']), 0, 8);
+                    $ex = rest_unterricht_aus_entries($r['json']);
+                    $zeile['extrahierte_faecher'] = count($ex['fachKuerzel']);
+                    $zeile['fach_beispiele']      = array_slice(array_keys($ex['fachKuerzel']), 0, 8);
+                    $zeile['paare_explizit']      = array_slice(array_keys($ex['paareExplizit']), 0, 8);
                     if ($r['status'] === 200 && strpos($pfad, 'timetable/entries') !== false) {
                         // Der format-Deskriptor erklärt, welche Position
                         // welchen Ressourcentyp enthält -> komplett ausgeben
@@ -396,9 +398,9 @@ if ($seg === ['sync', 'webuntis'] && $method === 'POST') {
             $fehler = [];
 
             if ($apiWahl === 'rest_beta') {
-                // ---- BETA: Paare über /api/public/timetable/weekly/data ----
-                // (laut Sondierung der einzige funktionierende Weg auf
-                //  frg-dusseldorf; liefert IDs direkt, kein Kürzel-Matching)
+                // ---- BETA: moderner Endpunkt timetable/entries je Lehrkraft
+                //      über den GESAMTEN Zeitraum (1 Aufruf pro Lehrkraft),
+                //      automatischer Fallback auf weekly/data ----
                 $rest = new WebUntisRest($cfg['base_url'], $cfg['school']);
                 $rest->mitSessionCookie((string)$wu->sessionCookie());
                 if (!$rest->tokenHolen()) {
@@ -406,17 +408,68 @@ if ($seg === ['sync', 'webuntis'] && $method === 'POST') {
                 }
                 $rest->tenantErmitteln();
 
-                // Alle Montage im Zeitraum (weekly/data liefert je Aufruf eine Woche)
-                $montage = [];
-                $t = strtotime(substr($von, 0, 4) . '-' . substr($von, 4, 2) . '-' . substr($von, 6, 2));
-                $ende = strtotime(substr($bis, 0, 4) . '-' . substr($bis, 4, 2) . '-' . substr($bis, 6, 2));
-                $t = strtotime('monday this week', $t);
-                while ($t <= $ende) { $montage[] = date('Y-m-d', $t); $t = strtotime('+1 week', $t); }
-                if ($montage === []) $montage[] = date('Y-m-d', strtotime('monday this week', $ende));
+                $klein = function_exists('mb_strtolower')
+                    ? fn(string $s) => mb_strtolower($s) : fn(string $s) => strtolower($s);
+                $fachIdVonKrz = []; $lehrerIdVonKrz = [];
+                foreach ($subjects as $s) {
+                    if (($s['name'] ?? '') !== '') $fachIdVonKrz[$klein((string)$s['name'])] = (int)$s['id'];
+                }
+                foreach ($teachers as $t) {
+                    if (($t['name'] ?? '') !== '') $lehrerIdVonKrz[$klein((string)$t['name'])] = (int)$t['id'];
+                }
 
-                $httpFehler = 0;
+                $vonIso = substr($von, 0, 4) . '-' . substr($von, 4, 2) . '-' . substr($von, 6, 2);
+                $bisIso = substr($bis, 0, 4) . '-' . substr($bis, 4, 2) . '-' . substr($bis, 6, 2);
+                // Montage für den weekly-Fallback (eine Woche je Aufruf)
+                $montage = [];
+                $t0 = strtotime('monday this week', strtotime($vonIso));
+                $tEnde = strtotime($bisIso);
+                while ($t0 <= $tEnde) { $montage[] = date('Y-m-d', $t0); $t0 = strtotime('+1 week', $t0); }
+                if ($montage === []) $montage[] = date('Y-m-d', strtotime('monday this week', $tEnde));
+
+                $strategie = null;   // wird beim ersten Aufruf entschieden
+                $httpFehler = 0; $unbekannteFaecher = [];
+
                 foreach ($teachers as $tRow) {
                     $tid = (int)$tRow['id'];
+
+                    if ($strategie !== 'weekly') {
+                        $r = $rest->get('/WebUntis/api/rest/view/v1/timetable/entries', [
+                            'start' => $vonIso, 'end' => $bisIso,
+                            'resourceType' => 'TEACHER', 'resources' => $tid]);
+                        if ($r['status'] === 200 && $r['json'] !== null) {
+                            $strategie = 'entries';
+                            $ex = rest_unterricht_aus_entries($r['json']);
+                            // implizite Lehrkraft = abgefragte Ressource
+                            foreach (array_keys($ex['fachKuerzel']) as $fk) {
+                                $fid = $fachIdVonKrz[$klein($fk)] ?? null;
+                                if ($fid === null) { $unbekannteFaecher[$fk] = true; continue; }
+                                $paare["$tid|$fid"] = true;
+                            }
+                            // explizite Lehrkräfte aus Kopplungen
+                            foreach (array_keys($ex['paareExplizit']) as $paar) {
+                                [$lk, $fk] = explode('|', $paar, 2);
+                                $lid = $lehrerIdVonKrz[$klein($lk)] ?? null;
+                                $fid = $fachIdVonKrz[$klein($fk)] ?? null;
+                                if ($lid === null || $fid === null) continue;
+                                $paare["$lid|$fid"] = true;
+                            }
+                            continue;
+                        }
+                        if ($strategie === null) {
+                            $strategie = 'weekly';
+                            $fehler[] = 'entries nicht nutzbar (HTTP ' . $r['status'] . ') – Fallback auf weekly/data';
+                            // aktuelle Lehrkraft läuft unten über weekly mit
+                        } else {
+                            $httpFehler++;
+                            if ($httpFehler <= 5) {
+                                $fehler[] = 'REST entries Lehrer ' . ($tRow['name'] ?? $tid) . ': HTTP ' . $r['status'];
+                            }
+                            continue;
+                        }
+                    }
+
+                    // ---- weekly-Fallback: je Woche ein Aufruf ----
                     foreach ($montage as $montag) {
                         $r = $rest->get('/WebUntis/api/public/timetable/weekly/data', [
                             'elementType' => 2, 'elementId' => $tid,
@@ -435,6 +488,10 @@ if ($seg === ['sync', 'webuntis'] && $method === 'POST') {
                     }
                 }
                 if ($httpFehler > 5) $fehler[] = '… und ' . ($httpFehler - 5) . ' weitere HTTP-Fehler';
+                if ($unbekannteFaecher !== []) {
+                    $fehler[] = 'REST: Fachkürzel ohne Treffer in getSubjects(): '
+                        . implode(', ', array_slice(array_keys($unbekannteFaecher), 0, 15));
+                }
                 if ($paare === []) {
                     json_err('REST-Beta lieferte keine Paare – Ergebnis der Sondierung bitte an die Entwicklung geben. Der Standard-Sync (JSON-RPC) funktioniert unverändert.', 502);
                 }
