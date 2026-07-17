@@ -1,5 +1,21 @@
 # Changelog – Fachkonferenzen FRG
 
+## v0.4.0 (Juli 2026) – Fächer-Vorgaben, CSV, Archiv
+
+- Neues Regelwerk „Fächer-Vorgaben" (Tabelle fach_vorgaben, Migration 03):
+  Kürzel oder Präfix-Muster (LZ*, WP*, …) -> aktiv/inaktiv + Fachgruppe;
+  exakter Treffer schlägt Muster, längstes Muster gewinnt
+- Standard-Vorbelegung FRG/NRW-Gymnasium per Knopf (aus den
+  Kürzel-Konventionen der Schule, inkl. NW*, VXD*->Deutsch, VXM*->Mathe,
+  SoWi+Politik als gemeinsame Gruppe, SP*->Sport vor S*->Spanisch)
+- CSV-Export der aktuellen Konfiguration und CSV-Import ins Regelwerk
+  (Format: Fachkürzel;aktiv;Fachgruppe)
+- Schnappschuss-Archiv mit Wiederherstellen; automatischer Schnappschuss
+  vor jeder Anwendung/jedem Import
+- Nach Sync-Übernehmen werden Vorgaben automatisch auf NEUE Fächer
+  angewendet (bestehende bleiben unangetastet)
+- „Aktuellen Stand als Vorgaben sichern" persistiert Handarbeit
+
 ## v0.3.2-beta (Juli 2026) – REST: gestuftes Fach-Matching
 
 - Fachkürzel aus entries werden dreistufig aufgelöst: name -> longName/

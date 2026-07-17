@@ -78,6 +78,7 @@ nano ~/fachkonferenzen/backend/config.php     # DB-Passwort aus ~/.my.cnf
 
 mysql hornse_fachkonferenzen < ~/fachkonferenzen/sql/01_schema.sql
 mysql hornse_fachkonferenzen < ~/fachkonferenzen/sql/02_seed.sql
+mysql hornse_fachkonferenzen < ~/fachkonferenzen/sql/03_migration_fach_vorgaben.sql
 
 supervisorctl restart fachkonferenzen
 supervisorctl status fachkonferenzen          # muss RUNNING sein

@@ -11,6 +11,7 @@ require dirname(__DIR__) . '/auth/WebUntisAuth.php';
 require dirname(__DIR__) . '/auth/WebUntisRest.php';
 require dirname(__DIR__) . '/auth/extractors.php';
 require __DIR__ . '/sync.php';
+require __DIR__ . '/vorgaben.php';
 
 set_exception_handler(function (Throwable $e) {
     error_log('[API] ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
@@ -546,6 +547,13 @@ if ($seg === ['sync', 'webuntis'] && $method === 'POST') {
         ];
     }
 
+    $kuerzelVorher = [];
+    if ($modus === 'uebernehmen') {
+        foreach (db()->query('SELECT kuerzel FROM faecher')->fetchAll() as $z) {
+            $kuerzelVorher[$z['kuerzel']] = true;
+        }
+    }
+
     $ergebnis = sync_anwenden($teachers, $subjects, $rooms, $paarKeys, $modus);
     $ergebnis['zeitraum']    = ['von' => $von, 'bis' => $bis];
     $ergebnis['fehler']      = $fehler;
@@ -553,12 +561,111 @@ if ($seg === ['sync', 'webuntis'] && $method === 'POST') {
     $ergebnis['datenquelle'] = $datenquelle;
 
     if ($modus === 'uebernehmen') {
+        // Vorgaben automatisch auf NEU angelegte Fächer anwenden
+        $neueKuerzel = [];
+        foreach (db()->query('SELECT kuerzel FROM faecher')->fetchAll() as $z) {
+            if (!isset($kuerzelVorher[$z['kuerzel']])) $neueKuerzel[] = $z['kuerzel'];
+        }
+        if ($neueKuerzel !== []) {
+            $ergebnis['vorgaben_auto'] = vorgaben_anwenden($neueKuerzel)
+                + ['neue_faecher' => count($neueKuerzel)];
+        }
         unset($_SESSION['sync_cache']);
         $st = db()->prepare('INSERT INTO sync_protokoll (kuerzel, aktion, details) VALUES (?,?,?)');
         $st->execute([$_SESSION['kuerzel'] ?? '?', 'webuntis_sync',
                       json_encode($ergebnis, JSON_UNESCAPED_UNICODE)]);
     }
     json_out($ergebnis);
+}
+
+// ============================================================
+// FÄCHER-VORGABEN (Regelwerk), KONFIG-ARCHIV, KONFIG-CSV
+// ============================================================
+if (($seg[0] ?? '') === 'fach-vorgaben') {
+    require_admin();
+    if ($method === 'GET' && count($seg) === 1) {
+        json_out(db()->query('SELECT * FROM fach_vorgaben ORDER BY kuerzel')->fetchAll());
+    }
+    if ($method === 'DELETE' && count($seg) === 2) {
+        db()->prepare('DELETE FROM fach_vorgaben WHERE id = ?')->execute([(int)$seg[1]]);
+        json_out(['ok' => true]);
+    }
+    if ($method === 'POST' && $seg === ['fach-vorgaben', 'standard']) {
+        archiv_sichern('Vor Standard-Vorbelegung');
+        $n = vorgaben_upsert(standard_vorgaben());
+        json_out(['vorgaben' => $n] + vorgaben_anwenden());
+    }
+    if ($method === 'POST' && $seg === ['fach-vorgaben', 'anwenden']) {
+        archiv_sichern('Vor Vorgaben anwenden');
+        json_out(vorgaben_anwenden());
+    }
+    if ($method === 'POST' && $seg === ['fach-vorgaben', 'import']) {
+        $p = vorgaben_csv_parsen((string)req(body_json(), 'csv'));
+        archiv_sichern('Vor CSV-Import');
+        $n = vorgaben_upsert($p['zeilen']);
+        json_out(['vorgaben' => $n, 'uebersprungen' => $p['uebersprungen']] + vorgaben_anwenden());
+    }
+    if ($method === 'POST' && $seg === ['fach-vorgaben', 'sichern']) {
+        // Aktuellen Stand als exakte Vorgaben festschreiben (Handarbeit persistieren)
+        $stand = db()->query(
+            'SELECT f.kuerzel, f.aktiv, g.name AS fachgruppe
+               FROM faecher f LEFT JOIN fachgruppen g ON g.id = f.gruppe_id')->fetchAll();
+        archiv_sichern('Momentaufnahme gesichert');
+        json_out(['vorgaben' => vorgaben_upsert($stand)]);
+    }
+}
+
+if ($seg === ['faecher-konfig.csv'] && $method === 'GET') {
+    require_admin();
+    $stand = db()->query(
+        'SELECT f.kuerzel, f.aktiv, g.name AS fachgruppe
+           FROM faecher f LEFT JOIN fachgruppen g ON g.id = f.gruppe_id
+          ORDER BY f.kuerzel')->fetchAll();
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="faecher-konfiguration.csv"');
+    echo "Fachkürzel;aktiv;Fachgruppe\n";
+    foreach ($stand as $z) {
+        echo $z['kuerzel'] . ';' . (int)$z['aktiv'] . ';' . ($z['fachgruppe'] ?? '') . "\n";
+    }
+    exit;
+}
+
+if (($seg[0] ?? '') === 'konfig-archiv') {
+    require_admin();
+    if ($method === 'GET' && count($seg) === 1) {
+        $liste = db()->query(
+            'SELECT id, zeitpunkt, kuerzel, grund FROM konfig_archiv
+              ORDER BY id DESC LIMIT 15')->fetchAll();
+        json_out($liste);
+    }
+    if ($method === 'POST' && count($seg) === 3 && $seg[2] === 'wiederherstellen') {
+        $st = db()->prepare('SELECT daten FROM konfig_archiv WHERE id = ?');
+        $st->execute([(int)$seg[1]]);
+        $zeile = $st->fetch();
+        if (!$zeile) json_err('Schnappschuss nicht gefunden', 404);
+        $stand = json_decode($zeile['daten'], true);
+        if (!is_array($stand)) json_err('Schnappschuss unlesbar', 500);
+        archiv_sichern('Vor Wiederherstellung von #' . (int)$seg[1]);
+        // Direkt auf faecher anwenden (exakte Kürzel)
+        $gruppenId = [];
+        foreach (db()->query('SELECT id, name FROM fachgruppen')->fetchAll() as $g) {
+            $gruppenId[$g['name']] = (int)$g['id'];
+        }
+        $upd = db()->prepare('UPDATE faecher SET aktiv = ?, gruppe_id = ? WHERE kuerzel = ?');
+        $insG = db()->prepare('INSERT INTO fachgruppen (name) VALUES (?)');
+        $n = 0;
+        foreach ($stand as $z) {
+            $gid = null;
+            $gName = trim((string)($z['fachgruppe'] ?? ''));
+            if ($gName !== '') {
+                if (!isset($gruppenId[$gName])) { $insG->execute([$gName]); $gruppenId[$gName] = (int)db()->lastInsertId(); }
+                $gid = $gruppenId[$gName];
+            }
+            $upd->execute([(int)$z['aktiv'], $gid, (string)$z['kuerzel']]);
+            $n++;
+        }
+        json_out(['wiederhergestellt' => $n]);
+    }
 }
 
 // ============================================================

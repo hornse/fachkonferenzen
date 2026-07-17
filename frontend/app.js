@@ -456,7 +456,8 @@ async function ansichtStammdaten() {
 }
 
 async function tabFaecher(ziel, suche = '', nurAktive = false) {
-    const [faecher, gruppen] = await Promise.all([api('/faecher'), api('/fachgruppen')]);
+    const [faecher, gruppen, vorgaben, archiv] = await Promise.all(
+        [api('/faecher'), api('/fachgruppen'), api('/fach-vorgaben'), api('/konfig-archiv')]);
     const s = suche.trim().toLowerCase();
     const gefiltert = faecher.filter(f =>
         (!nurAktive || Number(f.aktiv) === 1) &&
@@ -484,7 +485,80 @@ async function tabFaecher(ziel, suche = '', nurAktive = false) {
         </tbody></table>
         <p class="untertitel" style="margin-bottom:0">Nur <strong>aktive</strong> Fächer werden bei „Alle Fächer &amp; Gruppen anlegen"
         zu Konferenzen. Fächer in derselben Fachgruppe tagen als <em>eine</em> Konferenz. Empfohlener Ablauf nach dem
-        ersten Sync: alles deaktivieren, dann die Fachschafts-Fächer per Suche aktivieren.</p></div>`;
+        ersten Sync: alles deaktivieren, dann die Fachschafts-Fächer per Suche aktivieren –
+        oder unten die <strong>Vorgaben</strong> nutzen.</p></div>
+
+        <div class="karte"><details>
+        <summary style="cursor:pointer"><strong>Vorgaben &amp; Archiv</strong>
+            <span class="leer">(${vorgaben.length} Regeln, ${archiv.length} Schnappschüsse)</span></summary>
+        <p class="untertitel">Vorgaben sind das dauerhafte Regelwerk (Kürzel oder Präfix-Muster wie <code>LZ*</code>).
+        Sie werden auf Knopfdruck und automatisch auf neue Fächer nach jedem Sync angewendet.
+        Vor jeder Änderung wird ein Schnappschuss gesichert.</p>
+        <p>
+            <button type="button" id="v-standard" class="sekundaer">Standard-Vorbelegung (FRG) laden &amp; anwenden</button>
+            <button type="button" id="v-anwenden" class="sekundaer">Vorgaben jetzt anwenden</button>
+            <button type="button" id="v-sichern" class="sekundaer" title="Schreibt den aktuellen Stand als exakte Vorgaben fest">Aktuellen Stand als Vorgaben sichern</button>
+            <a href="/api/faecher-konfig.csv" download>Konfiguration als CSV exportieren</a>
+        </p>
+        <div class="raster zweispaltig">
+            <div>
+                <h2 style="margin-top:0">Vorgaben (Regelwerk)</h2>
+                <table><thead><tr><th>Kürzel/Muster</th><th>Aktiv</th><th>Fachgruppe</th><th></th></tr></thead>
+                <tbody>${vorgaben.map(v => `
+                    <tr><td>${q(v.kuerzel)}</td><td>${Number(v.aktiv) === 1 ? 'ja' : 'nein'}</td>
+                        <td>${q(v.fachgruppe || '–')}</td>
+                        <td><button type="button" class="klein gefahr" data-v-loeschen="${v.id}">×</button></td></tr>`).join('')
+                    || '<tr><td colspan="4" class="leer">Noch keine Vorgaben.</td></tr>'}
+                </tbody></table>
+                <label>CSV importieren (Format: <code>Fachkürzel;aktiv;Fachgruppe</code>)</label>
+                <textarea id="v-csv" rows="4" placeholder="LI G1;1;Litauisch&#10;Schw;1;Sport&#10;LZ*;0;"></textarea>
+                <p><button type="button" id="v-import">Importieren &amp; anwenden</button></p>
+            </div>
+            <div>
+                <h2 style="margin-top:0">Schnappschüsse</h2>
+                <table><thead><tr><th>Zeitpunkt</th><th>Anlass</th><th></th></tr></thead>
+                <tbody>${archiv.map(a => `
+                    <tr><td>${q(a.zeitpunkt)}</td><td>${q(a.grund)} <span class="leer">${q(a.kuerzel)}</span></td>
+                        <td><button type="button" class="klein sekundaer" data-a-restore="${a.id}">Wiederherstellen</button></td></tr>`).join('')
+                    || '<tr><td colspan="3" class="leer">Noch keine Schnappschüsse.</td></tr>'}
+                </tbody></table>
+            </div>
+        </div>
+        </details></div>`;
+
+    const vorgabenMeldung = (r) => meldung(
+        `${r.geaendert ?? 0} Fächer geändert, ${r.gruppen_neu ?? 0} Gruppen neu, ${r.ohne_vorgabe ?? 0} ohne Vorgabe`);
+    document.getElementById('v-standard').onclick = async () => {
+        if (!confirm('Standard-Regelwerk laden und auf alle Fächer anwenden? (Schnappschuss wird vorher gesichert)')) return;
+        vorgabenMeldung(await api('/fach-vorgaben/standard', { method: 'POST', body: {} }));
+        neuZeichnen();
+    };
+    document.getElementById('v-anwenden').onclick = async () => {
+        vorgabenMeldung(await api('/fach-vorgaben/anwenden', { method: 'POST', body: {} }));
+        neuZeichnen();
+    };
+    document.getElementById('v-sichern').onclick = async () => {
+        const r = await api('/fach-vorgaben/sichern', { method: 'POST', body: {} });
+        meldung(`${r.vorgaben} Vorgaben festgeschrieben`);
+        neuZeichnen();
+    };
+    document.getElementById('v-import').onclick = async () => {
+        const r = await api('/fach-vorgaben/import', { method: 'POST',
+            body: { csv: document.getElementById('v-csv').value } });
+        if ((r.uebersprungen || []).length) alert('Übersprungen:\n' + r.uebersprungen.join('\n'));
+        vorgabenMeldung(r);
+        neuZeichnen();
+    };
+    ziel.querySelectorAll('[data-v-loeschen]').forEach(b => b.onclick = async () => {
+        await api('/fach-vorgaben/' + b.dataset.vLoeschen, { method: 'DELETE' });
+        neuZeichnen();
+    });
+    ziel.querySelectorAll('[data-a-restore]').forEach(b => b.onclick = async () => {
+        if (!confirm('Diesen Schnappschuss wiederherstellen? (Der aktuelle Stand wird vorher gesichert)')) return;
+        const r = await api('/konfig-archiv/' + b.dataset.aRestore + '/wiederherstellen', { method: 'POST', body: {} });
+        meldung(`${r.wiederhergestellt} Fächer wiederhergestellt`);
+        neuZeichnen();
+    });
 
     const neuZeichnen = () => tabFaecher(ziel,
         document.getElementById('f-suche').value,
