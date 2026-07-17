@@ -284,15 +284,19 @@ if ($seg === ['sync', 'rest-sondierung'] && $method === 'POST') {
 
         $von = date('Y-m-d', strtotime('monday this week'));
         $bis = date('Y-m-d', strtotime('friday this week'));
-        $entriesBasis = ['start' => $von, 'end' => $bis, 'format' => 2,
+        $tid2 = (int)($lehrerListe[1]['id'] ?? $tid);   // zweite Lehrkraft für Batch-Test
+        $entriesBasis = ['start' => $von, 'end' => $bis,
                          'resourceType' => 'TEACHER', 'resources' => $tid];
         $proben = [
-            ['/WebUntis/api/rest/view/v1/app/data', []],
-            ['/WebUntis/api/rest/view/v1/timetable/entries',
-                $entriesBasis + ['periodTypes' => '', 'timetableType' => 'STANDARD']],
+            // format=2 gibt es auf dieser Instanz nicht ("Timetable format not found")
+            // -> Varianten testen: format=1, format=4, ganz ohne format,
+            //    und resources als Komma-Liste (Batch-Fähigkeit)
+            ['/WebUntis/api/rest/view/v1/timetable/entries', $entriesBasis + ['format' => 1]],
+            ['/WebUntis/api/rest/view/v1/timetable/entries', $entriesBasis + ['format' => 4]],
             ['/WebUntis/api/rest/view/v1/timetable/entries', $entriesBasis],
             ['/WebUntis/api/rest/view/v1/timetable/entries',
-                $entriesBasis + ['timetableType' => 'MY_TIMETABLE']],
+                ['start' => $von, 'end' => $bis, 'format' => 1,
+                 'resourceType' => 'TEACHER', 'resources' => $tid . ',' . $tid2]],
             ['/WebUntis/api/public/timetable/weekly/data',
                 ['elementType' => 2, 'elementId' => $tid,
                  'date' => $von, 'formatId' => 1]],

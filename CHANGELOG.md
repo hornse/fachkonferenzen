@@ -1,5 +1,11 @@
 # Changelog – Fachkonferenzen FRG
 
+## v0.2.2-beta (Juli 2026) – Sondierung: Format-Varianten
+
+- Sondierungsbefund: entries scheitert an format=2 („Timetable format not
+  found"). Neue Proben: format=1, format=4, ohne format, sowie resources
+  als Komma-Liste (Batch-Test für Alle-Lehrkräfte-in-einem-Aufruf)
+
 ## v0.2.1-beta (Juli 2026) – REST-Beta auf weekly/data umgestellt
 
 - Sondierungsbefund frg-dusseldorf: timetable/entries -> 404 (validationErrors),
