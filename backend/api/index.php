@@ -285,21 +285,18 @@ if ($seg === ['sync', 'rest-sondierung'] && $method === 'POST') {
         $von = date('Y-m-d', strtotime('monday this week'));
         $bis = date('Y-m-d', strtotime('friday this week'));
         $tid2 = (int)($lehrerListe[1]['id'] ?? $tid);   // zweite Lehrkraft für Batch-Test
-        $entriesBasis = ['start' => $von, 'end' => $bis,
-                         'resourceType' => 'TEACHER', 'resources' => $tid];
         $proben = [
-            // format=2 gibt es auf dieser Instanz nicht ("Timetable format not found")
-            // -> Varianten testen: format=1, format=4, ganz ohne format,
-            //    und resources als Komma-Liste (Batch-Fähigkeit)
-            ['/WebUntis/api/rest/view/v1/timetable/entries', $entriesBasis + ['format' => 1]],
-            ['/WebUntis/api/rest/view/v1/timetable/entries', $entriesBasis + ['format' => 4]],
-            ['/WebUntis/api/rest/view/v1/timetable/entries', $entriesBasis],
+            // Befund Runde 2: OHNE format-Parameter antwortet entries mit 200,
+            // aber die Positionsbedeutung ist formatabhängig -> wir brauchen
+            // den format-Deskriptor + einen Roh-Eintrag. Batch-Test diesmal
+            // korrekt ohne format. Dazu die SUBJECT-Variante.
             ['/WebUntis/api/rest/view/v1/timetable/entries',
-                ['start' => $von, 'end' => $bis, 'format' => 1,
-                 'resourceType' => 'TEACHER', 'resources' => $tid . ',' . $tid2]],
-            ['/WebUntis/api/public/timetable/weekly/data',
-                ['elementType' => 2, 'elementId' => $tid,
-                 'date' => $von, 'formatId' => 1]],
+                ['start' => $von, 'end' => $bis, 'resourceType' => 'TEACHER', 'resources' => $tid]],
+            ['/WebUntis/api/rest/view/v1/timetable/entries',
+                ['start' => $von, 'end' => $bis, 'resourceType' => 'TEACHER',
+                 'resources' => $tid . ',' . $tid2]],
+            ['/WebUntis/api/rest/view/v1/timetable/entries',
+                ['start' => $von, 'end' => $bis, 'resourceType' => 'SUBJECT', 'resources' => $sid]],
         ];
         foreach ($proben as [$pfad, $query]) {
             $r = $rest->get($pfad, $query);
@@ -330,6 +327,15 @@ if ($seg === ['sync', 'rest-sondierung'] && $method === 'POST') {
                     $ex = rest_paare_extrahieren($r['json']);
                     $zeile['extrahierte_paare'] = count($ex['paare']);
                     $zeile['paar_beispiele']    = array_slice(array_keys($ex['paare']), 0, 8);
+                    if ($r['status'] === 200 && strpos($pfad, 'timetable/entries') !== false) {
+                        // Der format-Deskriptor erklärt, welche Position
+                        // welchen Ressourcentyp enthält -> komplett ausgeben
+                        $zeile['format_beschreibung'] = $r['json']['format'] ?? null;
+                        $eintrag = rest_erster_eintrag($r['json']);
+                        $zeile['beispiel_eintrag'] = $eintrag !== null
+                            ? mb_substr(json_encode($eintrag, JSON_UNESCAPED_UNICODE), 0, 2000)
+                            : null;
+                    }
                 }
             } else {
                 $zeile['auszug'] = mb_substr($r['text'], 0, 300);

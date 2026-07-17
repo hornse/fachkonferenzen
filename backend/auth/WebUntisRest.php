@@ -99,6 +99,24 @@ class WebUntisRest
 }
 
 // ------------------------------------------------------------
+// Liefert den ersten Eintrag mit position1 aus einer beliebig
+// verschachtelten entries-Antwort (für Sondierungs-Berichte).
+// ------------------------------------------------------------
+function rest_erster_eintrag($json): ?array
+{
+    $treffer = null;
+    $lauf = function ($knoten) use (&$lauf, &$treffer): void {
+        if ($treffer !== null || !is_array($knoten)) return;
+        if (isset($knoten['position1'])) { $treffer = $knoten; return; }
+        foreach ($knoten as $wert) {
+            if (is_array($wert)) $lauf($wert);
+        }
+    };
+    $lauf($json);
+    return $treffer;
+}
+
+// ------------------------------------------------------------
 // Extraktor für den Legacy-Endpunkt /api/public/timetable/weekly/data
 // (formatId=1). Perioden liegen unter data.result.data.elementPeriods,
 // jede Periode hat ein elements-Array mit {type, id, orgId}:

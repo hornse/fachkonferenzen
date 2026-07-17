@@ -1,5 +1,13 @@
 # Changelog – Fachkonferenzen FRG
 
+## v0.2.3-beta (Juli 2026) – Sondierung: Format-Deskriptor
+
+- Befund: entries antwortet OHNE format-Parameter mit 200; die Bedeutung von
+  position1/2/3 ist formatabhängig (Klassen/Fächer/Lehrer je nach Ansicht)
+- Sondierung liefert jetzt den format-Deskriptor der Antwort und einen
+  Roh-Beispiel-Eintrag; Batch-Test (Komma-Liste) korrekt ohne format;
+  zusätzlich SUBJECT-Variante
+
 ## v0.2.2-beta (Juli 2026) – Sondierung: Format-Varianten
 
 - Sondierungsbefund: entries scheitert an format=2 („Timetable format not
