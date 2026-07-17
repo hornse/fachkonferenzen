@@ -410,10 +410,29 @@ if ($seg === ['sync', 'webuntis'] && $method === 'POST') {
 
                 $klein = function_exists('mb_strtolower')
                     ? fn(string $s) => mb_strtolower($s) : fn(string $s) => strtolower($s);
-                $fachIdVonKrz = []; $lehrerIdVonKrz = [];
+                // Gestuftes Fach-Matching: entries zeigt Anzeigenamen, die vom
+                // RPC-name abweichen können (Alias, Leerzeichen-Varianten).
+                // Stufe 1: name  Stufe 2: longName/alternateName  Stufe 3: ohne Leerzeichen
+                $fachStufe1 = []; $fachStufe2 = []; $fachStufe3 = [];
                 foreach ($subjects as $s) {
-                    if (($s['name'] ?? '') !== '') $fachIdVonKrz[$klein((string)$s['name'])] = (int)$s['id'];
+                    $id = (int)$s['id'];
+                    $n1 = $klein(trim((string)($s['name'] ?? '')));
+                    if ($n1 !== '' && !isset($fachStufe1[$n1])) $fachStufe1[$n1] = $id;
+                    foreach ([$s['longName'] ?? '', $s['alternateName'] ?? ''] as $n) {
+                        $n = $klein(trim((string)$n));
+                        if ($n !== '' && !isset($fachStufe2[$n])) $fachStufe2[$n] = $id;
+                    }
+                    $n3 = str_replace(' ', '', $n1);
+                    if ($n3 !== '' && !isset($fachStufe3[$n3])) $fachStufe3[$n3] = $id;
                 }
+                $fachIdSuchen = function (string $krz) use ($klein, $fachStufe1, $fachStufe2, $fachStufe3): ?int {
+                    $k = $klein(trim($krz));
+                    return $fachStufe1[$k]
+                        ?? $fachStufe2[$k]
+                        ?? $fachStufe3[str_replace(' ', '', $k)]
+                        ?? null;
+                };
+                $lehrerIdVonKrz = [];
                 foreach ($teachers as $t) {
                     if (($t['name'] ?? '') !== '') $lehrerIdVonKrz[$klein((string)$t['name'])] = (int)$t['id'];
                 }
@@ -442,7 +461,7 @@ if ($seg === ['sync', 'webuntis'] && $method === 'POST') {
                             $ex = rest_unterricht_aus_entries($r['json']);
                             // implizite Lehrkraft = abgefragte Ressource
                             foreach (array_keys($ex['fachKuerzel']) as $fk) {
-                                $fid = $fachIdVonKrz[$klein($fk)] ?? null;
+                                $fid = $fachIdSuchen($fk);
                                 if ($fid === null) { $unbekannteFaecher[$fk] = true; continue; }
                                 $paare["$tid|$fid"] = true;
                             }
@@ -450,7 +469,7 @@ if ($seg === ['sync', 'webuntis'] && $method === 'POST') {
                             foreach (array_keys($ex['paareExplizit']) as $paar) {
                                 [$lk, $fk] = explode('|', $paar, 2);
                                 $lid = $lehrerIdVonKrz[$klein($lk)] ?? null;
-                                $fid = $fachIdVonKrz[$klein($fk)] ?? null;
+                                $fid = $fachIdSuchen($fk);
                                 if ($lid === null || $fid === null) continue;
                                 $paare["$lid|$fid"] = true;
                             }

@@ -1,5 +1,11 @@
 # Changelog – Fachkonferenzen FRG
 
+## v0.3.2-beta (Juli 2026) – REST: gestuftes Fach-Matching
+
+- Fachkürzel aus entries werden dreistufig aufgelöst: name -> longName/
+  alternateName -> Leerzeichen-bereinigt; behebt verworfene Paare wie
+  „L7 G1"/„LI G1"; Rest wird weiterhin gemeldet
+
 ## v0.3.1-beta (Juli 2026) – Sync-Seite aufgeräumt
 
 - REST-Sondierung (Diagnosewerkzeug) erscheint nur noch bei ausgewählter
