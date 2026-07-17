@@ -1,5 +1,21 @@
 # Changelog – Fachkonferenzen FRG
 
+## v0.5.0 (Juli 2026) – Minimalplan
+
+- Neuer Knopf „Minimalplan erzeugen" je Planung: berechnet die minimale
+  Slot-Anzahl (exakte Graphfärbung mit Backtracking; Clique als Untergrenze
+  und Begründung), legt genau diese Slots an und weist konfliktfrei zu
+- Pädagogischer Tag: Schienen automatisch aus Datum, Startzeit, Dauer, Pause
+- Zeitraum: Termin-Kandidatenliste, es werden die ersten k verwendet;
+  bei zu wenigen Kandidaten klare Fehlermeldung mit Mindestanzahl und
+  Konflikt-Begründung
+- Begründungs-Anzeige: welche Konferenzen paarweise kollidieren und das
+  Minimum erzwingen; „bewiesen minimal" bei vollständiger Suche
+- Optionale Raumvergabe im selben Schritt; ersetzt vorhandene Slots/
+  Zuweisungen nach Rückfrage (manuelle Slot-Erstellung bleibt unverändert)
+- Neues Rechenmodul backend/api/minimalplan.php mit eigener Testsuite
+  (u. a. 5er-Kreis: k=3 trotz Clique 2 – exakte Suche verifiziert)
+
 ## v0.4.0 (Juli 2026) – Fächer-Vorgaben, CSV, Archiv
 
 - Neues Regelwerk „Fächer-Vorgaben" (Tabelle fach_vorgaben, Migration 03):

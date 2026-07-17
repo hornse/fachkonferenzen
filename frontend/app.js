@@ -322,6 +322,30 @@ async function ansichtPlanung(id) {
             </p>
         </div>
 
+        <div class="karte">
+            <h2 style="margin-top:0">Minimalplan <span class="leer">– so wenige Slots wie möglich</span></h2>
+            <p class="untertitel">Berechnet die kleinste Slot-Anzahl, mit der alle Lehrkräfte an all ihren
+            Konferenzen teilnehmen können, legt genau diese Slots an und weist konfliktfrei zu.
+            <strong>Ersetzt vorhandene Slots und Zuweisungen dieser Planung.</strong></p>
+            ${p.typ === 'paed_tag' ? `
+            <div class="raster zweispaltig"><div>
+                <label>Datum des pädagogischen Tags</label><input type="date" id="mp-datum">
+                <label>Beginn der ersten Schiene</label><input type="time" id="mp-start" value="13:00">
+            </div><div>
+                <label>Dauer je Schiene (Minuten)</label><input type="number" id="mp-dauer" value="90" min="15">
+                <label>Pause zwischen Schienen (Minuten)</label><input type="number" id="mp-pause" value="15" min="0">
+            </div></div>` : `
+            <label>Termin-Kandidaten (einer je Zeile: <code>JJJJ-MM-TT;HH:MM;HH:MM;Bezeichnung</code> –
+                gern mehr als nötig, es werden die ersten k verwendet)</label>
+            <textarea id="mp-kandidaten" rows="5" placeholder="2026-10-06;15:00;16:30
+2026-10-13;15:00;16:30
+2026-10-27;15:00;16:30
+2026-11-03;15:00;16:30
+2026-11-10;15:00;16:30"></textarea>`}
+            <p><label style="display:inline"><input type="checkbox" id="mp-raeume" style="width:auto"> Räume mit vorschlagen</label></p>
+            <p><button type="button" id="mp-los">Minimalplan erzeugen</button></p>
+        </div>
+
         <h2>Zeitslots</h2>
         ${p.slots.map(s => `
             <div class="slot-block">
@@ -422,6 +446,32 @@ async function ansichtPlanung(id) {
     document.getElementById('b-alles').onclick = () => {
         if (confirm('Alle bisherigen Zuweisungen verwerfen und neu berechnen?')) berechnen(true);
     };
+    document.getElementById('mp-los').onclick = async () => {
+        if (!confirm('Minimalplan erzeugen? Vorhandene Slots und Zuweisungen dieser Planung werden ersetzt.')) return;
+        const body = { raeume_vorschlagen: document.getElementById('mp-raeume').checked };
+        if (p.typ === 'paed_tag') {
+            body.datum = document.getElementById('mp-datum').value;
+            body.startzeit = document.getElementById('mp-start').value;
+            body.dauer_min = parseInt(document.getElementById('mp-dauer').value, 10);
+            body.pause_min = parseInt(document.getElementById('mp-pause').value, 10);
+        } else {
+            body.kandidaten = document.getElementById('mp-kandidaten').value
+                .split('\n').map(z => z.trim()).filter(z => z !== '')
+                .map(z => { const t = z.split(';').map(x => x.trim());
+                    return { datum: t[0], beginn: t[1], ende: t[2], bezeichnung: t[3] || '' }; });
+        }
+        try {
+            const r = await api(`/planungen/${id}/minimalplan`, { method: 'POST', body });
+            meldung(`Minimum: ${r.k} Slots ${r.exakt ? '(bewiesen minimal)' : '(Heuristik)'} – ${r.zugewiesen} Konferenzen zugewiesen`);
+            if (r.clique.length > 1) {
+                alert(`Minimale Slot-Anzahl: ${r.k}` + (r.exakt ? ' (bewiesen)' : '') +
+                    `\n\nBegründung – diese ${r.clique.length} Konferenzen kollidieren paarweise\n` +
+                    `und brauchen daher zwingend eigene Slots:\n• ` + r.clique.join('\n• '));
+            }
+            neuLaden();
+        } catch (e) { meldung(e.message, true); }
+    };
+
     document.getElementById('b-status').onclick = async () => {
         await api('/planungen/' + id, { method: 'PATCH',
             body: { status: istVeroeffentlicht ? 'entwurf' : 'veroeffentlicht' } });

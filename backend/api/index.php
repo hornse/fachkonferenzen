@@ -12,6 +12,7 @@ require dirname(__DIR__) . '/auth/WebUntisRest.php';
 require dirname(__DIR__) . '/auth/extractors.php';
 require __DIR__ . '/sync.php';
 require __DIR__ . '/vorgaben.php';
+require __DIR__ . '/minimalplan.php';
 
 set_exception_handler(function (Throwable $e) {
     error_log('[API] ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
@@ -821,6 +822,104 @@ if (($seg[0] ?? '') === 'planungen') {
     if ($pid !== null && $seg === ['planungen', (string)$pid, 'konflikte'] && $method === 'GET') {
         require_admin();
         json_out(konflikte_berechnen($pid));
+    }
+
+    // ---- Minimalplan: minimale Slot-Anzahl berechnen + anlegen ----
+    if ($pid !== null && $seg === ['planungen', (string)$pid, 'minimalplan'] && $method === 'POST') {
+        require_admin();
+        $b = body_json();
+        $st = db()->prepare('SELECT * FROM planungen WHERE id = ?');
+        $st->execute([$pid]);
+        $planung = $st->fetch();
+        if (!$planung) json_err('Planung nicht gefunden', 404);
+
+        $st = db()->prepare(
+            'SELECT k.*, COALESCE(g.name, f.name) AS einheit_name
+               FROM konferenzen k
+               LEFT JOIN faecher f     ON f.id = k.fach_id
+               LEFT JOIN fachgruppen g ON g.id = k.gruppe_id
+              WHERE k.planung_id = ?');
+        $st->execute([$pid]);
+        $konfs = $st->fetchAll();
+        if ($konfs === []) json_err('Diese Planung hat noch keine Konferenzen');
+
+        $einheiten = []; $namen = [];
+        foreach ($konfs as $k) {
+            $einheiten[(int)$k['id']] = array_keys(einheit_lehrer($k));
+            $namen[(int)$k['id']] = $k['einheit_name'];
+        }
+        $r = minimalplan_rechnen($einheiten);
+        $k = $r['k'];
+        $cliqueNamen = array_map(fn($id) => $namen[$id] ?? (string)$id, $r['clique']);
+
+        // ---- Slot-Spezifikationen bauen ----
+        $slotSpecs = [];
+        if ($planung['typ'] === 'paed_tag') {
+            $datum = (string)req($b, 'datum');
+            $start = (string)req($b, 'startzeit');
+            $dauer = max(15, (int)($b['dauer_min'] ?? 90));
+            $pause = max(0, (int)($b['pause_min'] ?? 15));
+            $t = strtotime($datum . ' ' . $start);
+            if ($t === false) json_err('datum/startzeit ungültig');
+            for ($c = 0; $c < $k; $c++) {
+                $beginn = $t + $c * ($dauer + $pause) * 60;
+                $slotSpecs[] = ['datum' => $datum,
+                                'beginn' => date('H:i:s', $beginn),
+                                'ende'   => date('H:i:s', $beginn + $dauer * 60),
+                                'bezeichnung' => 'Schiene ' . ($c + 1)];
+            }
+        } else {
+            $kandidaten = (array)($b['kandidaten'] ?? []);
+            usort($kandidaten, fn($x, $y) =>
+                [($x['datum'] ?? ''), ($x['beginn'] ?? '')] <=> [($y['datum'] ?? ''), ($y['beginn'] ?? '')]);
+            foreach ($kandidaten as $kd) {
+                if (($kd['datum'] ?? '') === '' || ($kd['beginn'] ?? '') === '' || ($kd['ende'] ?? '') === '') {
+                    json_err('Jeder Kandidat braucht datum, beginn, ende');
+                }
+            }
+            if (count($kandidaten) < $k) {
+                json_err("Es werden mindestens $k Termine benötigt (Kandidaten: " . count($kandidaten)
+                    . '). Begründung – diese Konferenzen kollidieren paarweise: '
+                    . implode(', ', $cliqueNamen), 422);
+            }
+            foreach (array_slice($kandidaten, 0, $k) as $kd) {
+                $slotSpecs[] = ['datum' => $kd['datum'], 'beginn' => $kd['beginn'],
+                                'ende' => $kd['ende'], 'bezeichnung' => (string)($kd['bezeichnung'] ?? '')];
+            }
+        }
+
+        // ---- Ersetzen: alte Slots weg, neue anlegen, Farben zuweisen ----
+        $pdo = db();
+        $pdo->beginTransaction();
+        $pdo->prepare('UPDATE konferenzen SET slot_id = NULL, raum_id = NULL WHERE planung_id = ?')
+            ->execute([$pid]);
+        $pdo->prepare('DELETE FROM slots WHERE planung_id = ?')->execute([$pid]);
+        $ins = $pdo->prepare(
+            'INSERT INTO slots (planung_id, datum, beginn, ende, bezeichnung) VALUES (?,?,?,?,?)');
+        $slotIds = [];
+        foreach ($slotSpecs as $spec) {
+            $ins->execute([$pid, $spec['datum'], $spec['beginn'], $spec['ende'], $spec['bezeichnung']]);
+            $slotIds[] = (int)$pdo->lastInsertId();
+        }
+        $upd = $pdo->prepare('UPDATE konferenzen SET slot_id = ? WHERE id = ?');
+        foreach ($r['farben'] as $konfId => $farbe) {
+            $upd->execute([$slotIds[$farbe], (int)$konfId]);
+        }
+        $pdo->commit();
+
+        $raumStat = null;
+        if (!empty($b['raeume_vorschlagen'])) {
+            $raumStat = plan_berechnen($pid, false, true)['raeume'] ?? null;
+        }
+        json_out([
+            'k'              => $k,
+            'exakt'          => $r['exakt'],
+            'clique'         => $cliqueNamen,
+            'slots_angelegt' => count($slotIds),
+            'zugewiesen'     => count($r['farben']),
+            'raeume'         => $raumStat,
+            'konflikte'      => konflikte_berechnen($pid),
+        ]);
     }
 
     // ---- Automatische Berechnung ----
