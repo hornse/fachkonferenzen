@@ -706,7 +706,7 @@ function ansichtSync() {
             <p>
                 <button type="button" id="sy-vorschau">Vorschau abrufen</button>
                 <button type="button" id="sy-uebernehmen" class="sekundaer" disabled>Übernehmen</button>
-                <button type="button" id="sy-sondierung" class="sekundaer">REST-Sondierung ausführen</button>
+                <button type="button" id="sy-sondierung" class="sekundaer" hidden title="Diagnose: klopft die interne REST-API ab, schreibt nichts">REST-Sondierung ausführen</button>
             </p>
         </div>
         <div id="sy-ergebnis"></div>`;
@@ -766,6 +766,12 @@ function ansichtSync() {
             knopfV.textContent = 'Vorschau abrufen';
         }
     };
+    // Sondierung ist ein Diagnosewerkzeug für die Beta-API -> nur dann zeigen
+    document.querySelectorAll('[name=sy-api]').forEach(radio => radio.onchange = () => {
+        document.getElementById('sy-sondierung').hidden =
+            document.querySelector('[name=sy-api]:checked').value !== 'rest_beta';
+    });
+
     document.getElementById('sy-vorschau').onclick = () => lauf('vorschau');
     document.getElementById('sy-uebernehmen').onclick = () => lauf('uebernehmen');
 

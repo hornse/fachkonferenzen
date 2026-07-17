@@ -1,5 +1,11 @@
 # Changelog – Fachkonferenzen FRG
 
+## v0.3.1-beta (Juli 2026) – Sync-Seite aufgeräumt
+
+- REST-Sondierung (Diagnosewerkzeug) erscheint nur noch bei ausgewählter
+  Beta-API; Rollen klarer: Radio = Datenquelle, Vorschau/Übernehmen =
+  Arbeitsablauf, Sondierung = Diagnose
+
 ## v0.3.0-beta (Juli 2026) – REST-Modul ausgelagert, entries-Strategie
 
 - Neues wiederverwendbares Modul hornse/webuntis-client-php (WebUntisAuth,
