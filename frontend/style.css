@@ -170,3 +170,5 @@ tr:hover td { background: var(--papier); }
 @media (prefers-reduced-motion: no-preference) {
     .karte, .slot-block { transition: box-shadow .15s ease; }
 }
+
+.chip.warn { border-color: var(--gold); background: #F6EEDD; }

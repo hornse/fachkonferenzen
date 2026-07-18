@@ -1,5 +1,20 @@
 # Changelog – Fachkonferenzen FRG
 
+## v0.7.0 (Juli 2026) – Prüfungs-Tab mit Stunden-Signal
+
+- Neuer Stammdaten-Tab „Prüfung" (Standard-Ansicht): eine Zeile je aktive
+  Lehrkraft mit ihren Konferenz-Einheiten (nach Fachgruppen gebündelt),
+  Stundenzahl aus dem letzten Sync-Zeitraum, Auffälligkeits-Hinweisen
+  (≤2 Stunden = Vertretungsverdacht, >3 Konferenzen) und ×-Knopf zum
+  direkten Ausschließen – Prüfen und Aufräumen in einer Ansicht
+- Sync zählt Perioden je Zuordnung mit (Migration 05, Spalte stunden);
+  alle drei Wege (RPC, REST entries, REST weekly) liefern Zählwerte,
+  Duplikat-Zusammenführung addiert
+- Modul webuntis-client-php v1.1.0: Extraktoren liefern Zählwerte
+  (rückwärtskompatibel über array_keys)
+- Fix: isset-/null-Falle beim Entfernen entfallener Zuordnungen
+  (array_key_exists) – von der Testsuite gefangen
+
 ## v0.6.0 (Juli 2026) – Zuordnungs-Ausschluss + Filter
 
 - Neues „Ausgeschlossen"-Kennzeichen je Lehrer-Fach-Zuordnung (Migration 04):

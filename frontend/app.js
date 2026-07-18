@@ -9,7 +9,7 @@ const $nav     = document.getElementById('nav');
 const $benutzer = document.getElementById('benutzer');
 
 let me = null;                 // aktueller Benutzer (/api/auth/me)
-let stammdatenTab = 'faecher';
+let stammdatenTab = 'pruefung';
 let vorgabenOffen = false;   // Auf/Zu-Zustand von „Vorgaben & Archiv" übersteht Neuzeichnen
 
 // ------------------------------------------------------------
@@ -488,7 +488,7 @@ async function ansichtStammdaten() {
         <h1>Stammdaten</h1>
         <p class="untertitel">Quelle: WebUntis-Sync · Ergänzungen manuell oder per CSV</p>
         <div class="tab-leiste">
-            ${['faecher:Fächer', 'gruppen:Fachgruppen', 'lehrer:Lehrkräfte', 'raeume:Räume', 'zuordnungen:Zuordnungen']
+            ${['pruefung:Prüfung', 'faecher:Fächer', 'gruppen:Fachgruppen', 'lehrer:Lehrkräfte', 'raeume:Räume', 'zuordnungen:Zuordnungen']
                 .map(t => { const [k, n] = t.split(':');
                     return `<button type="button" data-tab="${k}" class="${stammdatenTab === k ? 'aktiv' : ''}">${n}</button>`;
                 }).join('')}
@@ -499,11 +499,81 @@ async function ansichtStammdaten() {
         ansichtStammdaten();
     });
     const ziel = document.getElementById('tab-inhalt');
+    if (stammdatenTab === 'pruefung')     return tabPruefung(ziel);
     if (stammdatenTab === 'faecher')      return tabFaecher(ziel);
     if (stammdatenTab === 'gruppen')      return tabGruppen(ziel);
     if (stammdatenTab === 'lehrer')       return tabLehrer(ziel);
     if (stammdatenTab === 'raeume')       return tabRaeume(ziel);
     if (stammdatenTab === 'zuordnungen')  return tabZuordnungen(ziel);
+}
+
+async function tabPruefung(ziel, suche = '') {
+    const daten = await api('/pruefung');
+    const s = suche.trim().toLowerCase();
+
+    const bewerte = (l) => {
+        const hinweise = [];
+        if (l.einheiten.length > 3) hinweise.push(`${l.einheiten.length} Konferenzen`);
+        l.einheiten.forEach(e => {
+            if (e.stunden !== null && e.stunden <= 2) hinweise.push(`${e.name}: nur ${e.stunden} Std. – Vertretung?`);
+        });
+        return hinweise;
+    };
+    const zeilen = daten
+        .map(l => ({ ...l, hinweise: bewerte(l) }))
+        .filter(l => s === '' || l.kuerzel.toLowerCase().includes(s) || l.name.toLowerCase().includes(s))
+        .sort((a, b) => (b.hinweise.length - a.hinweise.length) || a.kuerzel.localeCompare(b.kuerzel));
+    const auffaellig = zeilen.filter(l => l.hinweise.length).length;
+    const stundenFehlen = daten.every(l => l.einheiten.every(e => e.stunden === null));
+
+    ziel.innerHTML = `
+        ${stundenFehlen ? `<div class="hinweis-kasten">Noch keine Stundenzahlen vorhanden –
+            einmal <a href="#/sync">WebUntis-Sync</a> (Vorschau → Übernehmen) ausführen,
+            dann zeigt jede Konferenz die Unterrichtsstunden im Zeitraum an.</div>` : ''}
+        <div class="karte">
+            <div style="display:flex;gap:.8rem;align-items:center;flex-wrap:wrap;margin-bottom:.8rem">
+                <input id="pr-suche" class="klein" style="min-width:220px"
+                       placeholder="Lehrkraft suchen …" value="${q(suche)}">
+                <span class="leer">${zeilen.length} Lehrkräfte, ${auffaellig} auffällig ·
+                    <span class="chip warn" style="padding:.1rem .5rem">⚠ wenig Stunden</span> = Vertretungsverdacht,
+                    × schließt die Zuordnung dauerhaft aus</span>
+            </div>
+            <table>
+            <thead><tr><th>Lehrkraft</th><th>Konferenzen (mit Stunden im Sync-Zeitraum)</th><th>Hinweise</th></tr></thead>
+            <tbody>${zeilen.map(l => `
+                <tr>
+                    <td><strong>${q(l.kuerzel)}</strong> <span class="leer">${q(l.name)}</span></td>
+                    <td>${l.einheiten.map(e => {
+                        const warn = e.stunden !== null && e.stunden <= 2;
+                        const std = e.stunden === null
+                            ? (e.quellen.includes('webuntis') ? '–' : e.quellen.join('/'))
+                            : e.stunden + ' Std.';
+                        return `<span class="chip ${warn ? 'warn' : ''}"
+                                      title="Quelle: ${q(e.quellen.join(', '))}">
+                                    ${warn ? '⚠ ' : ''}${q(e.name)} <span class="raum">${q(std)}</span>
+                                    <button type="button" data-ausschluss='${JSON.stringify(e.ids)}'
+                                            data-text="${q(l.kuerzel)} – ${q(e.name)}"
+                                            title="Zuordnung ausschließen (zählt dann nirgends mehr mit)">×</button>
+                                </span>`;
+                    }).join(' ')}</td>
+                    <td class="${l.hinweise.length ? '' : 'leer'}">${l.hinweise.map(q).join('<br>') || '–'}</td>
+                </tr>`).join('') || '<tr><td colspan="3" class="leer">Keine Daten – zuerst Sync ausführen.</td></tr>'}
+            </tbody></table>
+        </div>`;
+
+    let tippTimer;
+    document.getElementById('pr-suche').oninput = () => {
+        clearTimeout(tippTimer);
+        tippTimer = setTimeout(() => tabPruefung(ziel, document.getElementById('pr-suche').value), 250);
+    };
+    ziel.querySelectorAll('[data-ausschluss]').forEach(b => b.onclick = async () => {
+        if (!confirm(`„${b.dataset.text}" ausschließen? Die Zuordnung zählt dann nirgends mehr mit;\nder Sync legt sie nicht erneut an. Rückgängig: Tab Zuordnungen.`)) return;
+        for (const id of JSON.parse(b.dataset.ausschluss)) {
+            await api('/lehrer-fach/' + id, { method: 'PATCH', body: { ausgeschlossen: 1 } });
+        }
+        meldung('Ausgeschlossen');
+        tabPruefung(ziel, document.getElementById('pr-suche').value);
+    });
 }
 
 async function tabFaecher(ziel, suche = '', nurAktive = false) {

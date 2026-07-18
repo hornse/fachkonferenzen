@@ -52,10 +52,13 @@ function rest_unterricht_aus_entries($json): array
                 }
                 if ($faecher !== []) {
                     $ergebnis['eintraege']++;
-                    $ergebnis['fachKuerzel'] += $faecher;
+                    // Werte = Anzahl Einträge (Stunden-Signal), array_keys bleibt kompatibel
+                    foreach (array_keys($faecher) as $f) {
+                        $ergebnis['fachKuerzel'][$f] = ($ergebnis['fachKuerzel'][$f] ?? 0) + 1;
+                    }
                     foreach (array_keys($lehrer) as $l) {
                         foreach (array_keys($faecher) as $f) {
-                            $ergebnis['paareExplizit']["$l|$f"] = true;
+                            $ergebnis['paareExplizit']["$l|$f"] = ($ergebnis['paareExplizit']["$l|$f"] ?? 0) + 1;
                         }
                     }
                 }
@@ -124,7 +127,9 @@ function rest_paare_aus_weekly($json): array
             if ($lehrer === [] || $faecher === []) continue;
             $perioden++;
             foreach (array_keys($lehrer) as $l) {
-                foreach (array_keys($faecher) as $f) $paare["$l|$f"] = true;
+                foreach (array_keys($faecher) as $f) {
+                    $paare["$l|$f"] = ($paare["$l|$f"] ?? 0) + 1;   // = Perioden-Zahl
+                }
             }
         }
     }

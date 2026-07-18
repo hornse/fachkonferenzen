@@ -16,8 +16,15 @@
 
 declare(strict_types=1);
 
-function sync_anwenden(array $teachers, array $subjects, array $rooms, array $paarKeys, string $modus): array
+function sync_anwenden(array $teachers, array $subjects, array $rooms, array $paare, string $modus): array
 {
+    // $paare: Liste ['t|s', ...] ODER Map ['t|s' => Stundenzahl]
+    $paarStunden = [];
+    foreach ($paare as $k => $v) {
+        if (is_int($k)) $paarStunden[(string)$v] = null;
+        else            $paarStunden[(string)$k] = (int)$v;
+    }
+    $paarKeys = array_keys($paarStunden);
     $pdo = db();
     $anwenden = $modus === 'uebernehmen';
     if ($anwenden) $pdo->beginTransaction();
@@ -116,14 +123,17 @@ function sync_anwenden(array $teachers, array $subjects, array $rooms, array $pa
     // --------------------------------------------------------
     // Zuordnungen diffen ("webuntisLehrerId|webuntisFachId")
     // --------------------------------------------------------
-    $ziel = [];  // "lehrerId|fachId" => true (lokale IDs)
+    $ziel = [];  // "lehrerId|fachId" => Stundenzahl|null (lokale IDs)
     $unaufgeloest = 0;
     foreach ($paarKeys as $key) {
         [$twid, $swid] = array_map('intval', explode('|', $key));
         $lid = $mapLehrer[$twid] ?? null;
         $fid = $mapFach[$swid] ?? null;
         if ($lid === null || $fid === null) { $unaufgeloest++; continue; }
-        $ziel["$lid|$fid"] = true;
+        $st = $paarStunden[$key];
+        // Duplikat-Zusammenführung: Stunden addieren
+        $ziel["$lid|$fid"] = $st === null ? ($ziel["$lid|$fid"] ?? null)
+                                          : (int)($ziel["$lid|$fid"] ?? 0) + $st;
     }
 
     $bestehend = $pdo->query('SELECT id, lehrer_id, fach_id, quelle, gesperrt, ausgeschlossen FROM lehrer_fach')->fetchAll();
@@ -137,9 +147,10 @@ function sync_anwenden(array $teachers, array $subjects, array $rooms, array $pa
     foreach ($bestehend as $r) {
         $key = $r['lehrer_id'] . '|' . $r['fach_id'];
         // Nur webuntis-Zuordnungen entfernen; manuell/csv/gesperrt bleiben
-        // immer, ausgeschlossene ebenfalls (Sperrvermerk gegen Wiederanlage)
+        // immer, ausgeschlossene ebenfalls (Sperrvermerk gegen Wiederanlage).
+        // WICHTIG: array_key_exists, nicht isset – Stundenwerte können null sein!
         if ($r['quelle'] === 'webuntis' && !(int)$r['gesperrt']
-            && !(int)($r['ausgeschlossen'] ?? 0) && !isset($ziel[$key])) {
+            && !(int)($r['ausgeschlossen'] ?? 0) && !array_key_exists($key, $ziel)) {
             $entfernt[] = (int)$r['id'];
         }
     }
@@ -149,10 +160,21 @@ function sync_anwenden(array $teachers, array $subjects, array $rooms, array $pa
 
     if ($anwenden) {
         $ins = $pdo->prepare(
-            "INSERT INTO lehrer_fach (lehrer_id, fach_id, quelle, gesperrt)
-             VALUES (?,?,'webuntis',0)
+            "INSERT INTO lehrer_fach (lehrer_id, fach_id, quelle, gesperrt, stunden)
+             VALUES (?,?,'webuntis',0,?)
              ON DUPLICATE KEY UPDATE lehrer_id = lehrer_id");
-        foreach ($neu as $key) { [$lid, $fid] = explode('|', $key); $ins->execute([(int)$lid, (int)$fid]); }
+        foreach ($neu as $key) {
+            [$lid, $fid] = explode('|', $key);
+            $ins->execute([(int)$lid, (int)$fid, $ziel[$key]]);
+        }
+        // Stunden-Signal auch für bestehende Zeilen aktualisieren
+        $updSt = $pdo->prepare('UPDATE lehrer_fach SET stunden = ? WHERE id = ?');
+        foreach ($bestehend as $r) {
+            $key = $r['lehrer_id'] . '|' . $r['fach_id'];
+            if (isset($ziel[$key]) && $ziel[$key] !== null) {
+                $updSt->execute([$ziel[$key], (int)$r['id']]);
+            }
+        }
         if ($entfernt !== []) {
             $in = implode(',', array_fill(0, count($entfernt), '?'));
             $pdo->prepare("DELETE FROM lehrer_fach WHERE id IN ($in)")->execute($entfernt);

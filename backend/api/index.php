@@ -258,6 +258,49 @@ if (($seg[0] ?? '') === 'lehrer-fach') {
 }
 
 // ============================================================
+// PRÜFUNG: wahrscheinliche Lehrer-Fächer-Kombinationen je Lehrkraft
+// (nur aktive Lehrkräfte/Fächer, ohne Ausgeschlossene; Einheiten
+// nach Fachgruppen gebündelt, Stunden aufsummiert)
+// ============================================================
+if ($seg === ['pruefung'] && $method === 'GET') {
+    require_admin();
+    $zeilen = db()->query(
+        "SELECT l.id AS lehrer_id, l.kuerzel, l.vorname, l.nachname,
+                lf.id AS lf_id, lf.quelle, lf.stunden,
+                COALESCE(g.name, f.name) AS einheit,
+                CONCAT(COALESCE(g.id, 0), ':', IF(g.id IS NULL, f.id, 0)) AS einheit_key
+           FROM lehrer_fach lf
+           JOIN lehrer  l ON l.id = lf.lehrer_id AND l.aktiv = 1
+           JOIN faecher f ON f.id = lf.fach_id   AND f.aktiv = 1
+           LEFT JOIN fachgruppen g ON g.id = f.gruppe_id
+          WHERE lf.ausgeschlossen = 0
+          ORDER BY l.kuerzel, einheit")->fetchAll();
+
+    $lehrer = [];
+    foreach ($zeilen as $z) {
+        $lid = (int)$z['lehrer_id'];
+        if (!isset($lehrer[$lid])) {
+            $lehrer[$lid] = ['lehrer_id' => $lid, 'kuerzel' => $z['kuerzel'],
+                             'name' => trim($z['vorname'] . ' ' . $z['nachname']),
+                             'einheiten' => []];
+        }
+        $ek = $z['einheit_key'];
+        if (!isset($lehrer[$lid]['einheiten'][$ek])) {
+            $lehrer[$lid]['einheiten'][$ek] = ['name' => $z['einheit'], 'stunden' => null,
+                                               'quellen' => [], 'ids' => []];
+        }
+        $e = &$lehrer[$lid]['einheiten'][$ek];
+        $e['ids'][] = (int)$z['lf_id'];
+        if (!in_array($z['quelle'], $e['quellen'], true)) $e['quellen'][] = $z['quelle'];
+        if ($z['stunden'] !== null) $e['stunden'] = (int)($e['stunden'] ?? 0) + (int)$z['stunden'];
+        unset($e);
+    }
+    foreach ($lehrer as &$l) $l['einheiten'] = array_values($l['einheiten']);
+    unset($l);
+    json_out(array_values($lehrer));
+}
+
+// ============================================================
 // REST-SONDIERUNG (Beta): klopft die interne REST-API der
 // Instanz ab und liefert einen Bericht – schreibt NICHTS.
 // ============================================================
@@ -462,18 +505,18 @@ if ($seg === ['sync', 'webuntis'] && $method === 'POST') {
                             $strategie = 'entries';
                             $ex = rest_unterricht_aus_entries($r['json']);
                             // implizite Lehrkraft = abgefragte Ressource
-                            foreach (array_keys($ex['fachKuerzel']) as $fk) {
-                                $fid = $fachIdSuchen($fk);
+                            foreach ($ex['fachKuerzel'] as $fk => $anzahl) {
+                                $fid = $fachIdSuchen((string)$fk);
                                 if ($fid === null) { $unbekannteFaecher[$fk] = true; continue; }
-                                $paare["$tid|$fid"] = true;
+                                $paare["$tid|$fid"] = ($paare["$tid|$fid"] ?? 0) + (int)$anzahl;
                             }
                             // explizite Lehrkräfte aus Kopplungen
-                            foreach (array_keys($ex['paareExplizit']) as $paar) {
-                                [$lk, $fk] = explode('|', $paar, 2);
+                            foreach ($ex['paareExplizit'] as $paar => $anzahl) {
+                                [$lk, $fk] = explode('|', (string)$paar, 2);
                                 $lid = $lehrerIdVonKrz[$klein($lk)] ?? null;
                                 $fid = $fachIdSuchen($fk);
                                 if ($lid === null || $fid === null) continue;
-                                $paare["$lid|$fid"] = true;
+                                $paare["$lid|$fid"] = ($paare["$lid|$fid"] ?? 0) + (int)$anzahl;
                             }
                             continue;
                         }
@@ -503,8 +546,8 @@ if ($seg === ['sync', 'webuntis'] && $method === 'POST') {
                             }
                             continue;
                         }
-                        foreach (array_keys(rest_paare_aus_weekly($r['json'])['paare']) as $paar) {
-                            $paare[$paar] = true;
+                        foreach (rest_paare_aus_weekly($r['json'])['paare'] as $paar => $anzahl) {
+                            $paare[$paar] = ($paare[$paar] ?? 0) + (int)$anzahl;
                         }
                     }
                 }
@@ -525,7 +568,7 @@ if ($seg === ['sync', 'webuntis'] && $method === 'POST') {
                             if (($periode['lstype'] ?? 'ls') !== 'ls') continue; // nur Unterricht
                             foreach (($periode['te'] ?? []) as $te) {
                                 $tid = (int)($te['id'] ?? 0);
-                                if ($tid > 0) $paare["$tid|$sid"] = true;
+                                if ($tid > 0) $paare["$tid|$sid"] = ($paare["$tid|$sid"] ?? 0) + 1;
                             }
                         }
                     } catch (Throwable $e) {
