@@ -233,7 +233,7 @@ if (($seg[0] ?? '') === 'lehrer-fach') {
     if ($method === 'GET' && count($seg) === 1) {
         json_out(db()->query(
             'SELECT lf.*, l.kuerzel AS lehrer_kuerzel, l.vorname, l.nachname,
-                    f.kuerzel AS fach_kuerzel, f.name AS fach_name
+                    f.kuerzel AS fach_kuerzel, f.name AS fach_name, f.aktiv AS fach_aktiv
                FROM lehrer_fach lf
                JOIN lehrer  l ON l.id = lf.lehrer_id
                JOIN faecher f ON f.id = lf.fach_id
@@ -249,7 +249,7 @@ if (($seg[0] ?? '') === 'lehrer-fach') {
         json_out(['ok' => true], 201);
     }
     if ($method === 'PATCH' && count($seg) === 2) {
-        patch_row('lehrer_fach', (int)$seg[1], ['gesperrt','quelle']);
+        patch_row('lehrer_fach', (int)$seg[1], ['gesperrt','quelle','ausgeschlossen']);
     }
     if ($method === 'DELETE' && count($seg) === 2) {
         db()->prepare('DELETE FROM lehrer_fach WHERE id = ?')->execute([(int)$seg[1]]);
@@ -985,7 +985,8 @@ function einheit_lehrer(array $konferenz): array
             'SELECT lf.fach_id, f.gruppe_id, l.id AS lehrer_id, l.kuerzel
                FROM lehrer_fach lf
                JOIN lehrer  l ON l.id = lf.lehrer_id AND l.aktiv = 1
-               JOIN faecher f ON f.id = lf.fach_id')->fetchAll();
+               JOIN faecher f ON f.id = lf.fach_id AND f.aktiv = 1
+              WHERE lf.ausgeschlossen = 0')->fetchAll();
         foreach ($rows as $r) {
             $cache['fach'][(int)$r['fach_id']][(int)$r['lehrer_id']] = $r['kuerzel'];
             if ($r['gruppe_id'] !== null) {
@@ -1254,11 +1255,14 @@ function termine_fuer_lehrer(int $lehrerId): array
            LEFT JOIN raeume      r  ON r.id  = k.raum_id
           WHERE k.slot_id IS NOT NULL
             AND (
-                 k.fach_id IN (SELECT fach_id FROM lehrer_fach WHERE lehrer_id = ?)
+                 k.fach_id IN (SELECT fach_id FROM lehrer_fach
+                                WHERE lehrer_id = ? AND ausgeschlossen = 0)
               OR k.gruppe_id IN (
                      SELECT DISTINCT f.gruppe_id
-                       FROM lehrer_fach lf JOIN faecher f ON f.id = lf.fach_id
-                      WHERE lf.lehrer_id = ? AND f.gruppe_id IS NOT NULL)
+                       FROM lehrer_fach lf
+                       JOIN faecher f ON f.id = lf.fach_id AND f.aktiv = 1
+                      WHERE lf.lehrer_id = ? AND lf.ausgeschlossen = 0
+                        AND f.gruppe_id IS NOT NULL)
             )
           ORDER BY s.datum, s.beginn");
     $st->execute([$lehrerId, $lehrerId]);

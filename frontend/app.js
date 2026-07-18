@@ -742,21 +742,32 @@ async function tabRaeume(ziel) {
     });
 }
 
-async function tabZuordnungen(ziel) {
+async function tabZuordnungen(ziel, nurAktive = true) {
     const [zuordnungen, lehrer, faecher] = await Promise.all(
         [api('/lehrer-fach'), api('/lehrer'), api('/faecher')]);
+    const gefiltert = zuordnungen.filter(z => !nurAktive || Number(z.fach_aktiv) === 1);
+
     ziel.innerHTML = `
-        <div class="karte"><table>
+        <div class="karte">
+            <p style="margin-top:0">
+                <label style="display:inline"><input type="checkbox" id="z-nuraktive" style="width:auto"
+                    ${nurAktive ? 'checked' : ''}> nur aktive Fächer zeigen</label>
+                <span class="leer">(${gefiltert.length} von ${zuordnungen.length} Zuordnungen)</span>
+            </p>
+            <table>
             <thead><tr><th>Lehrkraft</th><th>Fach</th><th>Quelle</th>
-                <th title="Gesperrte Einträge entfernt der Sync nie">Gesperrt</th><th></th></tr></thead>
-            <tbody>${zuordnungen.map(z => `
-                <tr data-id="${z.id}">
+                <th title="Gesperrte Einträge entfernt der Sync nie">Gesperrt</th>
+                <th title="Zählt nirgends mit (Konflikte, Termine); Sperrvermerk gegen erneutes Anlegen durch den Sync – z. B. für Vertretungsunterricht">Ausgeschlossen</th>
+                <th></th></tr></thead>
+            <tbody>${gefiltert.map(z => `
+                <tr data-id="${z.id}" style="${Number(z.ausgeschlossen) === 1 ? 'opacity:.5' : ''}">
                     <td>${q(z.lehrer_kuerzel)} <span class="leer">${q(z.vorname)} ${q(z.nachname)}</span></td>
-                    <td>${q(z.fach_kuerzel)} – ${q(z.fach_name)}</td>
+                    <td>${q(z.fach_kuerzel)} – ${q(z.fach_name)}${Number(z.fach_aktiv) === 1 ? '' : ' <span class="leer">(inaktiv)</span>'}</td>
                     <td>${q(z.quelle)}</td>
-                    <td><input type="checkbox" style="width:auto" ${Number(z.gesperrt) === 1 ? 'checked' : ''}></td>
-                    <td><button type="button" class="klein gefahr">Entfernen</button></td>
-                </tr>`).join('') || '<tr><td colspan="5" class="leer">Noch keine Zuordnungen.</td></tr>'}
+                    <td><input type="checkbox" style="width:auto" data-feld="gesperrt" ${Number(z.gesperrt) === 1 ? 'checked' : ''}></td>
+                    <td><input type="checkbox" style="width:auto" data-feld="ausgeschlossen" ${Number(z.ausgeschlossen) === 1 ? 'checked' : ''}></td>
+                    <td><button type="button" class="klein gefahr" title="Achtung: Der nächste Sync legt die Zuordnung ggf. wieder an – für dauerhaftes Ignorieren „Ausgeschlossen" setzen">Entfernen</button></td>
+                </tr>`).join('') || '<tr><td colspan="6" class="leer">Keine Zuordnungen.</td></tr>'}
             </tbody></table></div>
         <div class="raster zweispaltig">
             <div class="karte">
@@ -775,31 +786,35 @@ async function tabZuordnungen(ziel) {
                 <p><button type="button" id="csv-import">Importieren</button></p>
             </div>
         </div>`;
+
+    const neuZeichnen = () => tabZuordnungen(ziel, document.getElementById('z-nuraktive').checked);
+    document.getElementById('z-nuraktive').onchange = neuZeichnen;
+
     document.getElementById('z-anlegen').onclick = async () => {
         await api('/lehrer-fach', { method: 'POST', body: {
             lehrer_id: parseInt(document.getElementById('z-lehrer').value, 10),
             fach_id: parseInt(document.getElementById('z-fach').value, 10) } });
-        tabZuordnungen(ziel);
+        neuZeichnen();
     };
     document.getElementById('csv-import').onclick = async () => {
         const r = await api('/import/csv', { method: 'POST',
             body: { csv: document.getElementById('csv').value } });
         meldung(`${r.importiert} importiert, ${r.uebersprungen.length} übersprungen`);
         if (r.uebersprungen.length) alert('Übersprungen:\n' + r.uebersprungen.join('\n'));
-        tabZuordnungen(ziel);
+        neuZeichnen();
     };
-    ziel.querySelectorAll('tbody tr').forEach(tr => {
+    ziel.querySelectorAll('tbody tr[data-id]').forEach(tr => {
         const id = tr.dataset.id;
-        if (!id) return;
-        const kasten = tr.querySelector('[type=checkbox]');
-        if (kasten) kasten.onchange = async () => {
-            await api('/lehrer-fach/' + id, { method: 'PATCH', body: { gesperrt: kasten.checked ? 1 : 0 } });
+        tr.querySelectorAll('[data-feld]').forEach(kasten => kasten.onchange = async () => {
+            await api('/lehrer-fach/' + id, { method: 'PATCH',
+                body: { [kasten.dataset.feld]: kasten.checked ? 1 : 0 } });
             meldung('Gespeichert');
-        };
+            neuZeichnen();
+        });
         const knopf = tr.querySelector('button');
         if (knopf) knopf.onclick = async () => {
             await api('/lehrer-fach/' + id, { method: 'DELETE' });
-            tabZuordnungen(ziel);
+            neuZeichnen();
         };
     });
 }

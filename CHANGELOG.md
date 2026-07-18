@@ -1,5 +1,16 @@
 # Changelog – Fachkonferenzen FRG
 
+## v0.6.0 (Juli 2026) – Zuordnungs-Ausschluss + Filter
+
+- Neues „Ausgeschlossen"-Kennzeichen je Lehrer-Fach-Zuordnung (Migration 04):
+  zählt nirgends mit (Konfliktgraph, Termine, iCal) und wirkt als
+  Sperrvermerk – der Sync legt die Zuordnung nicht erneut an und entfernt
+  den Vermerk nie. Gedacht für Vertretungsunterricht u. ä.
+- Zuordnungs-Tab: Filter „nur aktive Fächer" (Standard an), Ausschluss-Spalte,
+  ausgegraut dargestellte ausgeschlossene Zeilen, Hinweis am Entfernen-Knopf
+- Konsistenz: Lehrkräfte inaktiver Kursvarianten zählen nicht mehr zur
+  Fachgruppen-Konferenz; Termine/iCal entsprechend gefiltert
+
 ## v0.5.1 (Juli 2026) – UI-Fix
 
 - „Vorgaben & Archiv" bleibt nach Änderungen aufgeklappt

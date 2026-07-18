@@ -126,7 +126,7 @@ function sync_anwenden(array $teachers, array $subjects, array $rooms, array $pa
         $ziel["$lid|$fid"] = true;
     }
 
-    $bestehend = $pdo->query('SELECT id, lehrer_id, fach_id, quelle, gesperrt FROM lehrer_fach')->fetchAll();
+    $bestehend = $pdo->query('SELECT id, lehrer_id, fach_id, quelle, gesperrt, ausgeschlossen FROM lehrer_fach')->fetchAll();
     $bestehendKeys = [];
     foreach ($bestehend as $r) $bestehendKeys[$r['lehrer_id'] . '|' . $r['fach_id']] = $r;
 
@@ -136,8 +136,10 @@ function sync_anwenden(array $teachers, array $subjects, array $rooms, array $pa
     }
     foreach ($bestehend as $r) {
         $key = $r['lehrer_id'] . '|' . $r['fach_id'];
-        // Nur webuntis-Zuordnungen entfernen; manuell/csv/gesperrt bleiben immer
-        if ($r['quelle'] === 'webuntis' && !(int)$r['gesperrt'] && !isset($ziel[$key])) {
+        // Nur webuntis-Zuordnungen entfernen; manuell/csv/gesperrt bleiben
+        // immer, ausgeschlossene ebenfalls (Sperrvermerk gegen Wiederanlage)
+        if ($r['quelle'] === 'webuntis' && !(int)$r['gesperrt']
+            && !(int)($r['ausgeschlossen'] ?? 0) && !isset($ziel[$key])) {
             $entfernt[] = (int)$r['id'];
         }
     }
