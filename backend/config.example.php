@@ -21,8 +21,10 @@ return [
         'client'               => 'FachkonferenzenFRG',
         // personType 2 = Lehrkraft, 16 = WebUntis-Admin (personId = -1)
         'allowed_person_types' => [2, 16],
-        // Kürzel, die automatisch Admin-Rechte erhalten
-        'admin_kuerzel'        => ['Hor'],
+        // Kürzel, die automatisch Admin-Rechte erhalten.
+        // Exakt wie in Untis geschrieben (case-sensitiv), im Zweifel
+        // mehrere Varianten. NUR in der config.php eintragen (nicht in git)!
+        'admin_kuerzel'        => ['XYZ'],
     ],
 
     'app' => [

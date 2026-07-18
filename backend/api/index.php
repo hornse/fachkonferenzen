@@ -46,6 +46,33 @@ if ($seg === ['auth', 'me'] && $method === 'GET') {
     json_out(current_user());
 }
 
+// ============================================================
+// ÖFFENTLICH (ohne Login): Terminaushang veröffentlichter Planungen.
+// Bewusst OHNE jede Lehrkräfte-Information (Datenschutz, siehe
+// docs/SICHERHEIT.md) – nur Konferenz, Termin, Raum, Schiene.
+// ============================================================
+if ($seg === ['oeffentlich', 'plan'] && $method === 'GET') {
+    $planungen = db()->query(
+        "SELECT id, titel, typ, schuljahr FROM planungen
+          WHERE status = 'veroeffentlicht' ORDER BY id DESC")->fetchAll();
+    foreach ($planungen as &$p) {
+        $st = db()->prepare(
+            "SELECT s.datum, s.beginn, s.ende, s.bezeichnung,
+                    COALESCE(g.name, f.name) AS konferenz, r.kuerzel AS raum
+               FROM konferenzen k
+               JOIN slots s ON s.id = k.slot_id
+               LEFT JOIN faecher     f ON f.id = k.fach_id
+               LEFT JOIN fachgruppen g ON g.id = k.gruppe_id
+               LEFT JOIN raeume      r ON r.id = k.raum_id
+              WHERE k.planung_id = ? AND k.slot_id IS NOT NULL
+              ORDER BY s.datum, s.beginn, konferenz");
+        $st->execute([(int)$p['id']]);
+        $p['termine'] = $st->fetchAll();
+    }
+    unset($p);
+    json_out(['planungen' => $planungen]);
+}
+
 function login_lokal(string $email, string $passwort): void
 {
     $st = db()->prepare("SELECT * FROM benutzer WHERE email = ? AND typ = 'lokal' AND aktiv = 1");

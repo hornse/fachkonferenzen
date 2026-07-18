@@ -72,18 +72,24 @@ async function start() {
     if (me && (me.id || me.id === 0)) {
         zeigeKopf();
         route();
+    } else if ((location.hash || '').startsWith('#/plan')) {
+        ansichtOeffentlich();
     } else {
         zeigeLogin();
     }
 }
 
 window.addEventListener('hashchange', () => {
-    if (me && (me.id || me.id === 0)) route();
+    if (me && (me.id || me.id === 0)) return route();
+    if ((location.hash || '').startsWith('#/plan')) return ansichtOeffentlich();
+    zeigeLogin();
 });
 
 function route() {
     const teile = (location.hash.replace(/^#\/?/, '') || '').split('/');
     navMarkieren(teile[0] || 'start');
+    if (teile[0] === 'hilfe') return ansichtHilfe(teile[1]);
+    if (teile[0] === 'plan')  return ansichtOeffentlich();
     if (me.rolle === 'admin') {
         if (teile[0] === 'planungen')  return ansichtPlanungen();
         if (teile[0] === 'planung')    return ansichtPlanung(parseInt(teile[1], 10));
@@ -107,9 +113,11 @@ function zeigeKopf() {
             <a href="#/planungen"  data-ziel="planungen">Planungen</a>
             <a href="#/stammdaten" data-ziel="stammdaten">Stammdaten</a>
             <a href="#/sync"       data-ziel="sync">WebUntis-Sync</a>
-            <a href="#/termine"    data-ziel="termine">Meine Termine</a>`;
+            <a href="#/termine"    data-ziel="termine">Meine Termine</a>
+            <a href="#/hilfe"      data-ziel="hilfe">Hilfe</a>`;
     } else {
-        $nav.innerHTML = `<a href="#/termine" data-ziel="termine">Meine Termine</a>`;
+        $nav.innerHTML = `<a href="#/termine" data-ziel="termine">Meine Termine</a>
+            <a href="#/hilfe" data-ziel="hilfe">Hilfe</a>`;
     }
     $benutzer.innerHTML = `
         <span>${q(me.name || me.kuerzel || '')}</span>
@@ -138,6 +146,8 @@ function zeigeLogin(modus = 'webuntis') {
                 <button type="button" id="tab-lokal"    class="${modus === 'lokal' ? '' : 'inaktiv'}">Lokales Konto</button>
             </div>
             <div id="login-formular"></div>
+            <p style="margin-bottom:0;text-align:center">
+                <a href="#/plan">Konferenzplan ansehen (ohne Anmeldung)</a></p>
         </div>
     </div></div>`;
 
@@ -1071,6 +1081,183 @@ async function ansichtTermine() {
                 </tr>`).join('') || '<tr><td colspan="5" class="leer">Zurzeit sind keine Termine veröffentlicht.</td></tr>'}
             </tbody></table></div>
         ${icalHtml}`;
+}
+
+// ------------------------------------------------------------
+// ÖFFENTLICHES DASHBOARD (ohne Login): Terminaushang + iCal
+// Zeigt bewusst KEINE Lehrkräfte-Daten (siehe docs/SICHERHEIT.md).
+// ------------------------------------------------------------
+async function ansichtOeffentlich() {
+    $nav.innerHTML = '';
+    $benutzer.innerHTML = me && (me.id || me.id === 0)
+        ? `<a href="#/" style="color:var(--kreide)">Zur App</a>`
+        : `<a href="#/" style="color:var(--kreide)">Anmelden</a>`;
+    let daten;
+    try { daten = await api('/oeffentlich/plan'); }
+    catch (e) { meldung(e.message, true); return; }
+
+    const heute = new Date().toISOString().slice(0, 10);
+    const planungBlock = (p) => {
+        // Termine nach Datum gruppieren, darin nach Slot (Beginn+Bezeichnung)
+        const tage = {};
+        p.termine.forEach(t => {
+            const tag = tage[t.datum] = tage[t.datum] || {};
+            const schluessel = t.beginn + '|' + t.ende + '|' + t.bezeichnung;
+            (tag[schluessel] = tag[schluessel] || { beginn: t.beginn, ende: t.ende,
+                bezeichnung: t.bezeichnung, eintraege: [] }).eintraege.push(t);
+        });
+        const daten_ = Object.keys(tage).sort();
+        return `
+        <section class="karte">
+            <div style="display:flex;gap:1rem;align-items:baseline;flex-wrap:wrap">
+                <h2 style="margin:0">${q(p.titel)}</h2>
+                <span class="leer">${p.typ === 'paed_tag' ? 'Pädagogischer Tag' : 'Konferenzzeitraum'}
+                    ${p.schuljahr ? '· ' + q(p.schuljahr) : ''}</span>
+                <span style="flex:1"></span>
+                <a href="/api/ical/planung/${p.id}.ics" download>📅 Kalender herunterladen (.ics)</a>
+            </div>
+            ${daten_.length === 0 ? '<p class="leer">Noch keine Termine eingeplant.</p>' : ''}
+            ${daten_.map(d => `
+                <h3 style="margin:1.1rem 0 .4rem">${wochentagDE(d)}, ${datumDE(d)}
+                    ${d === heute ? '<span class="status-marke veroeffentlicht">heute</span>' : ''}</h3>
+                ${Object.values(tage[d]).sort((a, b) => a.beginn.localeCompare(b.beginn)).map(sl => `
+                    <div class="slot-block">
+                        <div class="slot-kopf">
+                            <span class="zeit">${zeitKurz(sl.beginn)}–${zeitKurz(sl.ende)} Uhr</span>
+                            <span>${q(sl.bezeichnung)}</span>
+                        </div>
+                        <div class="slot-inhalt">
+                            ${sl.eintraege.map(t => `
+                                <span class="chip"><strong>${q(t.konferenz)}</strong>
+                                    ${t.raum ? '<span class="raum">Raum ' + q(t.raum) + '</span>' : ''}</span>`).join('')}
+                        </div>
+                    </div>`).join('')}`).join('')}
+        </section>`;
+    };
+
+    $ansicht.innerHTML = `
+        <h1>Fachkonferenzen – Terminplan</h1>
+        <p class="untertitel">Friedrich-Rückert-Gymnasium Düsseldorf ·
+            per 📅-Link als Kalender-Datei speichern oder abonnieren</p>
+        ${daten.planungen.length
+            ? daten.planungen.map(planungBlock).join('')
+            : '<div class="karte"><p class="leer" style="margin:0">Zurzeit ist kein Konferenzplan veröffentlicht.</p></div>'}
+        <p class="leer">Lehrkräfte sehen nach der <a href="#/">Anmeldung</a> zusätzlich ihre persönlichen
+            Termine und können einen persönlichen Kalender abonnieren.</p>`;
+}
+
+function wochentagDE(iso) {
+    return ['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag']
+        [new Date(iso + 'T12:00:00').getDay()];
+}
+
+// ------------------------------------------------------------
+// HILFE: Schnellstart, Handbuch, FAQ (rollenabhängig)
+// ------------------------------------------------------------
+function ansichtHilfe(tab) {
+    tab = ['schnellstart', 'handbuch', 'faq'].includes(tab) ? tab : 'schnellstart';
+    const admin = me.rolle === 'admin';
+
+    const schnellstart = admin ? `
+        <div class="karte"><h2 style="margin-top:0">Schnellstart (Admin): In 6 Schritten zum Plan</h2><ol>
+        <li><strong>WebUntis-Sync</strong> ausführen (Menü „WebUntis-Sync"): Zeitraum 8–12 normale
+            Unterrichtswochen, Vorschau prüfen, Übernehmen. Die Beta-API filtert Vertretungen heraus.</li>
+        <li><strong>Stammdaten → Fächer</strong>: „Standard-Vorbelegung laden &amp; anwenden" –
+            Orga-Fächer werden deaktiviert, Kursvarianten in Fachgruppen gebündelt. Rest per Suche nacharbeiten.</li>
+        <li><strong>Stammdaten → Lehrkräfte</strong>: Dummy-Konten deaktivieren.</li>
+        <li><strong>Stammdaten → Prüfung</strong>: ⚠-Zeilen abarbeiten – × schließt Vertretungs-Zuordnungen
+            aus, „+ Fach…" ergänzt fehlende Facultas.</li>
+        <li><strong>Planungen</strong>: Planung anlegen (Pädagogischer Tag oder Zeitraum) →
+            „Alle Fächer &amp; Gruppen anlegen" → <strong>Minimalplan erzeugen</strong>
+            (bzw. Slots manuell + „Berechnen").</li>
+        <li><strong>Veröffentlichen</strong> – erst dann sehen Lehrkräfte ihre Termine, und der Plan
+            erscheint auf der <a href="#/plan">öffentlichen Terminseite</a>.</li>
+        </ol></div>` : `
+        <div class="karte"><h2 style="margin-top:0">Schnellstart (Lehrkräfte)</h2><ol>
+        <li>Mit deinem <strong>WebUntis-Konto</strong> anmelden (gleiche Zugangsdaten wie für den Stundenplan).</li>
+        <li>Unter <strong>„Meine Termine"</strong> stehen alle veröffentlichten Fachkonferenzen deiner Fächer.</li>
+        <li><strong>Kalender-Abo</strong>: Die Adresse unter „Kalender-Abo" in Outlook/Apple/Google als
+            Abonnement einfügen – Änderungen erscheinen automatisch.</li>
+        <li>Der Gesamtplan (ohne Anmeldung) steht unter <a href="#/plan">Terminplan</a>.</li>
+        </ol></div>`;
+
+    const handbuch = admin ? `
+        <div class="karte">
+        <h2 style="margin-top:0">Datengrundlage</h2>
+        <p>Die Konfliktregel lautet: Zwei Konferenzen dürfen nicht zeitgleich stattfinden, wenn mindestens
+        eine Lehrkraft in beiden Fächern unterrichtet. Die Zuordnung „wer unterrichtet was" kommt aus dem
+        WebUntis-Stundenplan (Sync), per CSV oder manuell. <strong>Quellen</strong>: webuntis-Einträge
+        pflegt der Sync; manuell/csv fasst er nie an. <strong>Gesperrt</strong> = Sync darf nie entfernen.
+        <strong>Ausgeschlossen</strong> = zählt nirgends mit und wird vom Sync nicht wieder angelegt
+        (für Vertretungs-Artefakte). Die <strong>Stundenzahl</strong> je Zuordnung zeigt, wie oft die
+        Kombination im Sync-Zeitraum vorkam – wenige Stunden deuten auf Vertretung.</p>
+        <h2>Fächer, Fachgruppen, Vorgaben</h2>
+        <p>Nur <strong>aktive</strong> Fächer werden zu Konferenzen. Fächer derselben
+        <strong>Fachgruppe</strong> tagen als eine Konferenz (Kursvarianten, Religion ev./kath.).
+        Die <strong>Vorgaben</strong> (Fächer-Tab, aufklappbar) sind das dauerhafte Regelwerk mit
+        Präfix-Mustern (z. B. <code>LZ*</code>); sie werden auf Knopfdruck und automatisch auf neue Fächer
+        nach jedem Sync angewendet. CSV-Export = Archiv; vor jeder Änderung entsteht ein Schnappschuss
+        mit Wiederherstellen-Funktion.</p>
+        <h2>Planung</h2>
+        <p>Je Planung: Zeitslots (manuell oder per <strong>Minimalplan</strong> – berechnet die kleinste
+        nötige Slot-Anzahl exakt, mit Begründung, welche Konferenzen paarweise kollidieren) und
+        Konferenzen (einzeln oder „Alle Fächer &amp; Gruppen"). „Berechnen" verteilt konfliktfrei
+        (pädagogischer Tag: packt früh; Zeitraum: verteilt gleichmäßig), bereits Zugewiesenes bleibt
+        fixiert („Alles neu" hebt das auf). Konflikte werden mit den betroffenen Lehrkräften angezeigt;
+        Zuweisungen sind per Auswahlfeld am Chip änderbar. Räume optional automatisch.</p>
+        <h2>Veröffentlichung &amp; Kalender</h2>
+        <p>Status „veröffentlicht" schaltet die Planung für Lehrkräfte, die öffentliche Terminseite und
+        den iCal-Download frei. Lehrkräfte erhalten zusätzlich ein persönliches Kalender-Abo (Token-URL).</p>
+        <h2>Sicherheit</h2>
+        <p>WebUntis-Zugangsdaten werden nur je Abruf verwendet, nie gespeichert. Die öffentliche Seite
+        zeigt keinerlei Lehrkräfte-Daten. Details: docs/SICHERHEIT.md im Repository.</p>
+        </div>` : `
+        <div class="karte">
+        <h2 style="margin-top:0">Meine Termine</h2>
+        <p>Angezeigt werden alle veröffentlichten Konferenzen der Fächer, die dir laut Stundenplan
+        (bzw. manueller Pflege durch die Administration) zugeordnet sind. Fehlt ein Fach oder ist eines
+        zu viel: kurze Nachricht an die Administration, das ist in Sekunden korrigiert.</p>
+        <h2>Kalender-Abo</h2>
+        <p>Die Abo-Adresse unter „Meine Termine" ist persönlich (zufälliger Sicherheits-Token) und
+        funktioniert in Outlook, Apple Kalender und Google Kalender als abonnierter Kalender –
+        Terminänderungen erscheinen dort automatisch, ohne neuen Download.</p>
+        <h2>Öffentlicher Plan</h2>
+        <p>Der Gesamtüberblick aller Konferenzen (ohne persönliche Filterung) steht unter
+        <a href="#/plan">Terminplan</a>, auch ohne Anmeldung – z. B. fürs Sekretariat oder den Aushang.</p>
+        </div>`;
+
+    const faqEintraege = admin ? [
+        ['Warum sehen Lehrkräfte keine Termine?', 'Die Planung steht noch auf „Entwurf". Erst „Veröffentlichen" schaltet sie frei – auch für die öffentliche Seite und den iCal-Download.'],
+        ['Bei einer Lehrkraft steht ein Fach, das sie gar nicht unterrichtet.', 'Meist Vertretungsunterricht im Sync-Zeitraum (erkennbar an wenigen Stunden im Prüfungs-Tab). Dort per × ausschließen – die Zuordnung zählt dann nirgends mehr und der Sync legt sie nicht erneut an. Bloßes Entfernen reicht nicht.'],
+        ['Einer Lehrkraft fehlt ein Fach (Facultas ohne aktuellen Unterricht).', 'Im Prüfungs-Tab per „+ Fach…" ergänzen. Die Zuordnung entsteht als „manuell" und ist automatisch sync-geschützt.'],
+        ['Der Minimalplan verlangt mehr Slots als erwartet.', 'Die Begründung nennt die Konferenzen, die paarweise kollidieren. Häufigste Ursache: eine fragwürdige Zuordnung (Vertretung, Karteileiche) – im Prüfungs-Tab kontrollieren und ausschließen, dann neu rechnen.'],
+        ['Was passiert bei einem erneuten Sync mit meiner Handarbeit?', 'Nichts Schlimmes: aktiv/Fachgruppen der Fächer, manuelle/gesperrte/ausgeschlossene Zuordnungen und alle Planungen bleiben unangetastet. Der Sync aktualisiert nur webuntis-Zuordnungen und legt neue Stammdaten an (auf die dann die Vorgaben automatisch wirken).'],
+        ['Welche API soll ich für den Sync nehmen?', 'Beide sind validiert. Die Beta (interne REST-API) filtert Vertretungsstunden von vornherein heraus und liefert das sauberere Bild; der Standard (JSON-RPC) ist die offizielle Schnittstelle. Zeitraum: 8–12 normale Wochen, Abitur/Ferien meiden.'],
+        ['Werden WebUntis-Passwörter gespeichert?', 'Nein. Zugangsdaten werden nur für den jeweiligen Abruf verwendet und danach verworfen; das Sync-Protokoll enthält nur Statistiken.'],
+        ['Was zeigt die öffentliche Seite?', 'Nur veröffentlichte Planungen mit Konferenz, Datum, Uhrzeit und Raum – bewusst ohne jegliche Lehrkräfte-Daten.'],
+        ['Kann ich einen alten Fächer-Konfigurationsstand zurückholen?', 'Ja: Fächer-Tab → „Vorgaben & Archiv" → Schnappschuss wiederherstellen. Vor jeder automatischen Änderung wird automatisch gesichert.'],
+    ] : [
+        ['Ich sehe keine Termine – woran liegt das?', 'Entweder ist noch kein Plan veröffentlicht, oder deinem Kürzel sind noch keine Fächer zugeordnet (Hinweis erscheint dann oben). In beiden Fällen hilft die Administration.'],
+        ['Ein Fach fehlt oder ist falsch.', 'Kurze Nachricht an die Administration – die Zuordnung wird zentral gepflegt und ist in Sekunden korrigiert.'],
+        ['Wie abonniere ich den Kalender?', 'Unter „Meine Termine" die Abo-Adresse kopieren und im Kalenderprogramm als „Kalender abonnieren" (Outlook: Kalender hinzufügen → aus dem Internet) einfügen. Änderungen erscheinen automatisch.'],
+        ['Ist die Abo-Adresse geheim?', 'Sie enthält einen persönlichen Zufalls-Token – nicht weitergeben. Sie zeigt ausschließlich Konferenztermine deiner Fächer.'],
+        ['Wird mein WebUntis-Passwort gespeichert?', 'Nein, es wird nur für die Anmeldung geprüft und nicht gespeichert.'],
+    ];
+    const faq = `<div class="karte">${faqEintraege.map(([f, a]) => `
+        <details style="margin:.4rem 0"><summary style="cursor:pointer"><strong>${q(f)}</strong></summary>
+        <p style="margin:.4rem 0 0">${a}</p></details>`).join('')}</div>`;
+
+    $ansicht.innerHTML = `
+        <h1>Hilfe</h1>
+        <p class="untertitel">Fachkonferenzplaner · ${admin ? 'Administration' : 'Lehrkräfte'}</p>
+        <div class="tab-leiste">
+            <button type="button" data-hilfe="schnellstart" class="${tab === 'schnellstart' ? 'aktiv' : ''}">Schnellstart</button>
+            <button type="button" data-hilfe="handbuch" class="${tab === 'handbuch' ? 'aktiv' : ''}">Handbuch</button>
+            <button type="button" data-hilfe="faq" class="${tab === 'faq' ? 'aktiv' : ''}">FAQ</button>
+        </div>
+        ${tab === 'schnellstart' ? schnellstart : tab === 'handbuch' ? handbuch : faq}`;
+    $ansicht.querySelectorAll('[data-hilfe]').forEach(b =>
+        b.onclick = () => { location.hash = '#/hilfe/' + b.dataset.hilfe; });
 }
 
 // ------------------------------------------------------------

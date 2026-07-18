@@ -1,5 +1,16 @@
 # Changelog – Fachkonferenzen FRG
 
+## v0.8.0 (Juli 2026) – Sicherheit, Hilfe, öffentliches Dashboard
+
+- Sicherheits-Audit dokumentiert (docs/SICHERHEIT.md) inkl. wiederkehrender
+  Prüfbefehle; .gitignore erweitert (.env, *.bak, .vscode); config.example.php
+  ohne echtes Admin-Kürzel
+- Neue Hilfe (Menüpunkt, rollenabhängig): Schnellstart, Handbuch, FAQ
+- Öffentliches Dashboard #/plan (ohne Login): veröffentlichte Planungen als
+  Terminaushang mit Tages-/Schienen-Gruppierung, „heute"-Markierung und
+  iCal-Download je Planung – bewusst ohne jegliche Lehrkräfte-Daten
+  (per Integrationstest abgesichert); Verweis auf der Login-Seite
+
 ## v0.7.1 (Juli 2026) – Prüfung: Fächer ergänzen, längere Zeiträume
 
 - Prüfungs-Tab: „+ Fach…"-Auswahl je Lehrkraft (legt manuelle,
@@ -7,6 +18,17 @@
 - Warn-Schwelle relativ: auffällig bei <=2 Std. oder weniger als 1/6 der
   größten Einheit der Lehrkraft (bleibt bei langen Zeiträumen trennscharf)
 - Sync-Voreinstellung: letzte 10 Wochen; Empfehlungstext aktualisiert
+
+## v0.8.0 (Juli 2026) – Sicherheit, Hilfe, öffentliches Dashboard
+
+- Sicherheits-Audit dokumentiert (docs/SICHERHEIT.md) inkl. wiederkehrender
+  Prüfbefehle; .gitignore erweitert (.env, *.bak, .vscode); config.example.php
+  ohne echtes Admin-Kürzel
+- Neue Hilfe (Menüpunkt, rollenabhängig): Schnellstart, Handbuch, FAQ
+- Öffentliches Dashboard #/plan (ohne Login): veröffentlichte Planungen als
+  Terminaushang mit Tages-/Schienen-Gruppierung, „heute"-Markierung und
+  iCal-Download je Planung – bewusst ohne jegliche Lehrkräfte-Daten
+  (per Integrationstest abgesichert); Verweis auf der Login-Seite
 
 ## v0.7.1 (Juli 2026) – Prüfung: Fächer ergänzen, längere Zeiträume
 
