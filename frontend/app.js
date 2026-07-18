@@ -10,6 +10,7 @@ const $benutzer = document.getElementById('benutzer');
 
 let me = null;                 // aktueller Benutzer (/api/auth/me)
 let stammdatenTab = 'faecher';
+let vorgabenOffen = false;   // Auf/Zu-Zustand von „Vorgaben & Archiv" übersteht Neuzeichnen
 
 // ------------------------------------------------------------
 // API-Helfer
@@ -538,7 +539,7 @@ async function tabFaecher(ziel, suche = '', nurAktive = false) {
         ersten Sync: alles deaktivieren, dann die Fachschafts-Fächer per Suche aktivieren –
         oder unten die <strong>Vorgaben</strong> nutzen.</p></div>
 
-        <div class="karte"><details>
+        <div class="karte"><details id="v-details" ${vorgabenOffen ? 'open' : ''}>
         <summary style="cursor:pointer"><strong>Vorgaben &amp; Archiv</strong>
             <span class="leer">(${vorgaben.length} Regeln, ${archiv.length} Schnappschüsse)</span></summary>
         <p class="untertitel">Vorgaben sind das dauerhafte Regelwerk (Kürzel oder Präfix-Muster wie <code>LZ*</code>).
@@ -575,6 +576,9 @@ async function tabFaecher(ziel, suche = '', nurAktive = false) {
             </div>
         </div>
         </details></div>`;
+
+    document.getElementById('v-details').addEventListener('toggle',
+        e => { vorgabenOffen = e.target.open; });
 
     const vorgabenMeldung = (r) => meldung(
         `${r.geaendert ?? 0} Fächer geändert, ${r.gruppen_neu ?? 0} Gruppen neu, ${r.ohne_vorgabe ?? 0} ohne Vorgabe`);

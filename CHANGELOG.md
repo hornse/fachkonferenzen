@@ -1,5 +1,9 @@
 # Changelog – Fachkonferenzen FRG
 
+## v0.5.1 (Juli 2026) – UI-Fix
+
+- „Vorgaben & Archiv" bleibt nach Änderungen aufgeklappt
+
 ## v0.5.0 (Juli 2026) – Minimalplan
 
 - Neuer Knopf „Minimalplan erzeugen" je Planung: berechnet die minimale
