@@ -508,15 +508,21 @@ async function ansichtStammdaten() {
 }
 
 async function tabPruefung(ziel, suche = '') {
-    const daten = await api('/pruefung');
+    const [daten, faecher] = await Promise.all([api('/pruefung'), api('/faecher')]);
     const s = suche.trim().toLowerCase();
 
+    // Warn-Schwelle relativ zur größten Einheit der Lehrkraft:
+    // auffällig, wenn <= 2 Std. ODER weniger als 1/6 des Maximums
+    const istWarn = (e, maxStd) => e.stunden !== null
+        && (e.stunden <= 2 || (maxStd > 0 && e.stunden * 6 < maxStd));
     const bewerte = (l) => {
         const hinweise = [];
+        const maxStd = Math.max(0, ...l.einheiten.map(e => e.stunden ?? 0));
         if (l.einheiten.length > 3) hinweise.push(`${l.einheiten.length} Konferenzen`);
         l.einheiten.forEach(e => {
-            if (e.stunden !== null && e.stunden <= 2) hinweise.push(`${e.name}: nur ${e.stunden} Std. – Vertretung?`);
+            if (istWarn(e, maxStd)) hinweise.push(`${e.name}: nur ${e.stunden} Std. – Vertretung?`);
         });
+        l.maxStd = maxStd;
         return hinweise;
     };
     const zeilen = daten
@@ -544,7 +550,7 @@ async function tabPruefung(ziel, suche = '') {
                 <tr>
                     <td><strong>${q(l.kuerzel)}</strong> <span class="leer">${q(l.name)}</span></td>
                     <td>${l.einheiten.map(e => {
-                        const warn = e.stunden !== null && e.stunden <= 2;
+                        const warn = istWarn(e, l.maxStd);
                         const std = e.stunden === null
                             ? (e.quellen.includes('webuntis') ? '–' : e.quellen.join('/'))
                             : e.stunden + ' Std.';
@@ -555,7 +561,12 @@ async function tabPruefung(ziel, suche = '') {
                                             data-text="${q(l.kuerzel)} – ${q(e.name)}"
                                             title="Zuordnung ausschließen (zählt dann nirgends mehr mit)">×</button>
                                 </span>`;
-                    }).join(' ')}</td>
+                    }).join(' ')}
+                        <select class="klein" data-fach-neu="${l.lehrer_id}" title="Fach manuell ergänzen (sync-geschützt)">
+                            <option value="">+ Fach…</option>
+                            ${faecher.filter(f => Number(f.aktiv) === 1).map(f =>
+                                `<option value="${f.id}">${q(f.kuerzel)} – ${q(f.gruppe_name || f.name)}</option>`).join('')}
+                        </select></td>
                     <td class="${l.hinweise.length ? '' : 'leer'}">${l.hinweise.map(q).join('<br>') || '–'}</td>
                 </tr>`).join('') || '<tr><td colspan="3" class="leer">Keine Daten – zuerst Sync ausführen.</td></tr>'}
             </tbody></table>
@@ -566,6 +577,14 @@ async function tabPruefung(ziel, suche = '') {
         clearTimeout(tippTimer);
         tippTimer = setTimeout(() => tabPruefung(ziel, document.getElementById('pr-suche').value), 250);
     };
+    ziel.querySelectorAll('[data-fach-neu]').forEach(sel => sel.onchange = async () => {
+        if (sel.value === '') return;
+        await api('/lehrer-fach', { method: 'POST', body: {
+            lehrer_id: parseInt(sel.dataset.fachNeu, 10),
+            fach_id: parseInt(sel.value, 10) } });
+        meldung('Zuordnung ergänzt (Quelle: manuell, sync-geschützt)');
+        tabPruefung(ziel, document.getElementById('pr-suche').value);
+    });
     ziel.querySelectorAll('[data-ausschluss]').forEach(b => b.onclick = async () => {
         if (!confirm(`„${b.dataset.text}" ausschließen? Die Zuordnung zählt dann nirgends mehr mit;\nder Sync legt sie nicht erneut an. Rückgängig: Tab Zuordnungen.`)) return;
         for (const id of JSON.parse(b.dataset.ausschluss)) {
@@ -894,21 +913,22 @@ async function tabZuordnungen(ziel, nurAktive = true) {
 // ------------------------------------------------------------
 function ansichtSync() {
     const heute = new Date();
-    const in14Tagen = new Date(Date.now() + 13 * 86400e3);
+    const vor10Wochen = new Date(Date.now() - 70 * 86400e3);
     const iso = d => d.toISOString().slice(0, 10);
     $ansicht.innerHTML = `
         <h1>WebUntis-Sync</h1>
         <p class="untertitel">Lehrkräfte, Fächer, Räume und die Zuordnung „wer unterrichtet was" aus dem Stundenplan</p>
         <div class="hinweis-kasten">Die Zugangsdaten werden <strong>nur für diesen Abruf</strong> verwendet und
-            nicht gespeichert. Als Zeitraum eignen sich zwei „normale" Unterrichtswochen (keine Ferien,
-            möglichst wenig Vertretung). Manuelle und gesperrte Zuordnungen bleiben immer erhalten.</div>
+            nicht gespeichert. Als Zeitraum empfiehlt sich ein längeres Fenster (8–12 normale Unterrichtswochen):
+            Je länger, desto trennschärfer das Stunden-Signal. Die Beta-API filtert
+            Vertretungsstunden zusätzlich von vornherein heraus. Manuelle und gesperrte Zuordnungen bleiben immer erhalten.</div>
         <div class="karte">
             <div class="raster zweispaltig"><div>
                 <label>WebUntis-Benutzername</label><input id="sy-benutzer" autocomplete="off">
                 <label>Passwort</label><input id="sy-passwort" type="password" autocomplete="off">
             </div><div>
-                <label>Von</label><input type="date" id="sy-von" value="${iso(heute)}">
-                <label>Bis</label><input type="date" id="sy-bis" value="${iso(in14Tagen)}">
+                <label>Von</label><input type="date" id="sy-von" value="${iso(vor10Wochen)}">
+                <label>Bis</label><input type="date" id="sy-bis" value="${iso(heute)}">
             </div></div>
             <label>API</label>
             <p style="margin-top:.2rem">

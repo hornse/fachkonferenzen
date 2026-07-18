@@ -1,5 +1,21 @@
 # Changelog – Fachkonferenzen FRG
 
+## v0.7.1 (Juli 2026) – Prüfung: Fächer ergänzen, längere Zeiträume
+
+- Prüfungs-Tab: „+ Fach…"-Auswahl je Lehrkraft (legt manuelle,
+  sync-geschützte Zuordnung an)
+- Warn-Schwelle relativ: auffällig bei <=2 Std. oder weniger als 1/6 der
+  größten Einheit der Lehrkraft (bleibt bei langen Zeiträumen trennscharf)
+- Sync-Voreinstellung: letzte 10 Wochen; Empfehlungstext aktualisiert
+
+## v0.7.1 (Juli 2026) – Prüfung: Fächer ergänzen, längere Zeiträume
+
+- Prüfungs-Tab: „+ Fach…"-Auswahl je Lehrkraft (legt manuelle,
+  sync-geschützte Zuordnung an)
+- Warn-Schwelle relativ: auffällig bei <=2 Std. oder weniger als 1/6 der
+  größten Einheit der Lehrkraft (bleibt bei langen Zeiträumen trennscharf)
+- Sync-Voreinstellung: letzte 10 Wochen; Empfehlungstext aktualisiert
+
 ## v0.7.0 (Juli 2026) – Prüfungs-Tab mit Stunden-Signal
 
 - Neuer Stammdaten-Tab „Prüfung" (Standard-Ansicht): eine Zeile je aktive
