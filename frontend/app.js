@@ -85,9 +85,26 @@ window.addEventListener('hashchange', () => {
     zeigeLogin();
 });
 
+/**
+ * Setzt den Fokus auf den Inhaltsbereich.
+ *
+ * Ersetzt das frühere aria-live="polite" am <main>: Das ließ bei jedem
+ * Wechsel die komplette Seite vorlesen. Der Fokussprung sagt dem
+ * Bildschirmleser stattdessen, wo es weitergeht – das übliche Vorgehen
+ * bei Anwendungen, die ihre Ansicht austauschen statt neu zu laden.
+ *
+ * preventScroll, damit die Seite nicht springt: Der Bereich steht
+ * ohnehin oben.
+ */
+function fokusAufInhalt() {
+    const ziel = document.getElementById('ansicht');
+    if (ziel) ziel.focus({ preventScroll: true });
+}
+
 function route() {
     const teile = (location.hash.replace(/^#\/?/, '') || '').split('/');
     navMarkieren(teile[0] || 'start');
+    fokusAufInhalt();
     if (teile[0] === 'hilfe') return ansichtHilfe(teile[1]);
     if (teile[0] === 'plan')  return ansichtOeffentlich();
     if (me.rolle === 'admin') {

@@ -1,24 +1,63 @@
 /* ============================================================
    Fachkonferenzen FRG – Gestaltung
-   Leitidee: Kreide auf Tafel. Slot-Köpfe und Login tragen das
-   Tafelgrün, alles andere bleibt ruhiges Papier.
+
+   Farben, Radien, Abstände und Schriftgrößen kommen seit v1.4.0 aus
+   dem Modul `hornse/ci-css` (vendored unter frontend/vendor/ci-css/).
+   Diese Datei definiert keine eigenen Farbwerte mehr, sondern bildet
+   die gewachsenen Variablennamen auf die gemeinsamen Tokens ab.
+
+   ZUR LEITIDEE „Kreide auf Tafel": Das Tafelgrün bleibt – es ist die
+   Kennfarbe dieser Anwendung und steckt als --ci-akzent im Modul.
+   Aufgegeben wurden die Serifenüberschriften und die warme
+   Papier-Palette: Eine eigene Schriftfamilie ist der sichtbarste
+   Unterschied überhaupt, deutlicher als jede Farbe, und stand der
+   Erkennbarkeit der Projektreihe im Weg. Wer sie zurückholen will,
+   nimmt ein Token --ci-schrift-titel ins Modul auf, statt sie hier
+   allein zu führen.
+
+   REGEL: Kein Farbwert ohne Token. Fehlt hier eine Farbe, gehört sie
+   ins Modul – nicht hierher.
+
+   Die Klassennamen sind bewusst UNVERÄNDERT geblieben: app.js setzt
+   sie in HTML-Vorlagen an über 130 Stellen.
+
+   SPDX-License-Identifier: GPL-3.0-or-later
    ============================================================ */
 
 :root {
-    --tafel:       #2E5B4C;   /* Tafelgrün */
-    --tafel-tief:  #22463A;
-    --kreide:      #FCFDF9;
-    --papier:      #F4F5F0;
-    --karte:       #FFFFFF;
-    --tinte:       #24312B;
-    --tinte-blass: #66746D;
-    --linie:       #D9DED6;
-    --gold:        #B98A2F;   /* Akzent: Hinweise, aktive Zustände */
-    --warn:        #B3402A;   /* Konflikte */
-    --warn-hell:   #F7E4DF;
-    --ok:          #3E7A5E;
-    --radius: 6px;
-    --schatten: 0 1px 3px rgba(36, 49, 43, .12);
+    /* ---- Abbildung auf die gemeinsamen Tokens --------------- */
+    --tafel:       var(--ci-akzent);
+    --tafel-tief:  var(--ci-akzent-text);
+    --kreide:      var(--ci-flaeche);
+    --papier:      var(--ci-grund);
+    --karte:       var(--ci-flaeche);
+    --tinte:       var(--ci-text);
+    --tinte-blass: var(--ci-text-blass);
+    --linie:       var(--ci-linie);
+
+    /* Das frühere --gold (#B98A2F) erreichte auf Weiß nur 3.12 und auf
+       der Hinweisfläche 2.70 – deutlich unter dem geforderten 4.5.
+       Ausgerechnet die Farbe, die Hinweise hervorheben soll, war kaum
+       lesbar. --ci-warnung erreicht 5.06 bzw. 6.90. */
+    --gold:        var(--ci-warnung);
+
+    --warn:        var(--ci-fehler);
+    --warn-hell:   var(--ci-fehler-flaeche);
+    --ok:          var(--ci-erfolg);
+
+    --radius:      var(--ci-radius);
+    --schatten:    var(--ci-schatten);
+
+    /* ---- Flächen für die farbigen Kästen -------------------- */
+    --ok-flaeche:      var(--ci-erfolg-flaeche);
+    --hinweis-flaeche: var(--ci-warnung-flaeche);
+
+    /* ---- Aufhellungen auf dem Tafelgrün ---------------------
+       Weiß mit Transparenz, nicht als Farbe der Palette. Sie stehen
+       hier, damit sie nicht verstreut im Blech liegen. */
+    --auf-tafel-flaeche: rgba(255, 255, 255, .12);
+    --auf-tafel-aktiv:   rgba(255, 255, 255, .18);
+    --auf-tafel-linie:   rgba(255, 255, 255, .55);
 }
 
 * { box-sizing: border-box; }
@@ -27,18 +66,35 @@ html, body {
     margin: 0;
     background: var(--papier);
     color: var(--tinte);
-    font: 15px/1.55 -apple-system, "Segoe UI", system-ui, sans-serif;
+    font: var(--ci-groesse-normal)/var(--ci-zeilenhoehe) var(--ci-schrift);
 }
 
-h1, h2, h3, .marke-text {
-    font-family: "Iowan Old Style", "Palatino", Georgia, serif;
-    letter-spacing: .01em;
-}
+/* Überschriften seit v1.4.0 in der Systemschrift wie in den übrigen
+   Anwendungen der Reihe. Die Serifen waren der sichtbarste Unterschied
+   zwischen den fünf Projekten. */
+h1, h2, h3, .marke-text { letter-spacing: .01em; }
 h1 { font-size: 1.7rem; margin: 0 0 .35rem; }
 h2 { font-size: 1.2rem; margin: 1.6rem 0 .6rem; }
 h1 + .untertitel { color: var(--tinte-blass); margin: 0 0 1.4rem; }
 
 a { color: var(--tafel); }
+
+/* Sprungmarke: Ohne sie muss sich jede Tastaturbedienung bei jedem
+   Seitenwechsel erst durch die Navigation arbeiten. */
+.skip-link {
+    position: absolute; left: -9999px;
+    background: var(--karte); color: var(--tafel);
+    padding: .6rem 1rem; border-radius: var(--radius); z-index: 100;
+}
+.skip-link:focus {
+    left: .75rem; top: .75rem;
+    outline: 3px solid var(--gold); outline-offset: 2px;
+}
+
+/* Der Inhaltsbereich bekommt den Fokus nach einem Ansichtswechsel,
+   damit Bildschirmleser dort weiterlesen statt am Seitenanfang. */
+#ansicht:focus { outline: none; }
+#ansicht:focus-visible { outline: 2px solid var(--gold); outline-offset: 4px; }
 
 /* --- Kopf --------------------------------------------------- */
 .kopf {
@@ -53,24 +109,24 @@ a { color: var(--tafel); }
 .marke { display: flex; align-items: center; gap: .6rem; color: var(--kreide); text-decoration: none; }
 .marke-symbol {
     display: inline-grid; place-items: center;
-    width: 2rem; height: 2rem; border: 1.5px solid rgba(252,253,249,.7);
-    border-radius: 50%; font-family: Georgia, serif; font-size: 1.1rem;
+    width: 2rem; height: 2rem; border: 1.5px solid var(--auf-tafel-linie);
+    border-radius: 50%; font-size: 1.1rem;
 }
 .marke-text { font-size: 1.05rem; line-height: 1.15; display: flex; flex-direction: column; }
-.marke-text small { font-family: -apple-system, system-ui, sans-serif; font-size: .68rem; opacity: .75; letter-spacing: .04em; }
+.marke-text small { font-size: .68rem; opacity: .75; letter-spacing: .04em; }
 
 .nav { display: flex; gap: .2rem; flex-wrap: wrap; }
 .nav a {
     color: var(--kreide); text-decoration: none; opacity: .82;
     padding: .35rem .7rem; border-radius: var(--radius);
 }
-.nav a:hover { opacity: 1; background: rgba(252,253,249,.1); }
-.nav a.aktiv { opacity: 1; background: rgba(252,253,249,.16); }
+.nav a:hover { opacity: 1; background: var(--auf-tafel-flaeche); }
+.nav a.aktiv { opacity: 1; background: var(--auf-tafel-aktiv); }
 
 .benutzer { margin-left: auto; display: flex; align-items: center; gap: .8rem; font-size: .85rem; }
 .benutzer .rolle { opacity: .7; }
-.benutzer button { background: none; border: 1px solid rgba(252,253,249,.5); color: var(--kreide); }
-.benutzer button:hover { background: rgba(252,253,249,.12); }
+.benutzer button { background: none; border: 1px solid var(--auf-tafel-linie); color: var(--kreide); }
+.benutzer button:hover { background: var(--auf-tafel-flaeche); }
 
 /* --- Inhalt ------------------------------------------------- */
 .inhalt { max-width: 1100px; margin: 0 auto; padding: 1.8rem 1.2rem 4rem; }
@@ -120,9 +176,8 @@ tr:hover td { background: var(--papier); }
 .slot-kopf {
     background: var(--tafel); color: var(--kreide);
     padding: .5rem .9rem; display: flex; gap: .9rem; align-items: baseline; flex-wrap: wrap;
-    font-family: "Iowan Old Style", Georgia, serif;
 }
-.slot-kopf .zeit { font-size: .85rem; opacity: .85; font-family: -apple-system, system-ui, sans-serif; }
+.slot-kopf .zeit { font-size: .85rem; opacity: .85; }
 .slot-kopf .werkzeuge { margin-left: auto; }
 .slot-inhalt { padding: .7rem .9rem; display: flex; gap: .5rem; flex-wrap: wrap; min-height: 2.6rem; }
 
@@ -137,8 +192,8 @@ tr:hover td { background: var(--papier); }
 .chip button:hover { color: var(--warn); background: none; }
 
 .konflikt-kasten { border-left: 4px solid var(--warn); background: var(--warn-hell); padding: .7rem 1rem; border-radius: var(--radius); margin: .8rem 0; }
-.ok-kasten { border-left: 4px solid var(--ok); background: #E7F0EA; padding: .7rem 1rem; border-radius: var(--radius); margin: .8rem 0; }
-.hinweis-kasten { border-left: 4px solid var(--gold); background: #F6EEDD; padding: .7rem 1rem; border-radius: var(--radius); margin: .8rem 0; }
+.ok-kasten { border-left: 4px solid var(--ok); background: var(--ok-flaeche); padding: .7rem 1rem; border-radius: var(--radius); margin: .8rem 0; }
+.hinweis-kasten { border-left: 4px solid var(--gold); background: var(--hinweis-flaeche); padding: .7rem 1rem; border-radius: var(--radius); margin: .8rem 0; }
 
 .status-marke { font-size: .74rem; padding: .15rem .55rem; border-radius: 999px; border: 1px solid var(--linie); color: var(--tinte-blass); }
 .status-marke.veroeffentlicht { border-color: var(--ok); color: var(--ok); }
@@ -171,4 +226,4 @@ tr:hover td { background: var(--papier); }
     .karte, .slot-block { transition: box-shadow .15s ease; }
 }
 
-.chip.warn { border-color: var(--gold); background: #F6EEDD; }
+.chip.warn { border-color: var(--gold); background: var(--hinweis-flaeche); }

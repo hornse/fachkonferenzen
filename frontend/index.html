@@ -1,13 +1,19 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" data-projekt="fachkonferenzen">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="robots" content="noindex, nofollow">
     <title>Fachkonferenzen · FRG Düsseldorf</title>
-    <link rel="stylesheet" href="/style.css?v=20260718164628">
+    <!-- Tokens zuerst, die projekteigene Datei zuletzt: So gewinnt
+         style.css im Zweifel, und die Werte kommen dennoch aus einer
+         Quelle. -->
+    <link rel="stylesheet" href="/vendor/ci-css/ci-tokens.css?v=20260810160855">
+    <link rel="stylesheet" href="/style.css?v=20260810160855">
 </head>
 <body>
+    <a href="#ansicht" class="skip-link">Zum Inhalt springen</a>
+
     <header class="kopf">
         <div class="kopf-innen">
             <a href="#/" class="marke">
@@ -19,10 +25,21 @@
         </div>
     </header>
 
-    <main id="ansicht" class="inhalt" aria-live="polite"></main>
+    <!-- aria-live stand vorher hier auf dem GESAMTEN Inhaltsbereich.
+         Bei jedem Ansichtswechsel wurde damit die komplette Seite
+         vorgelesen – gut gemeint und in der Praxis unbrauchbar.
+         Stattdessen setzt app.js nach dem Wechsel den Fokus hierher;
+         tabindex="-1" macht das möglich, ohne den Bereich in die
+         Tabulatorreihenfolge aufzunehmen. -->
+    <main id="ansicht" class="inhalt" tabindex="-1"></main>
 
-    <div id="meldung" class="meldung" hidden></div>
+    <!-- Die Meldung erschien und verschwand, ohne dass ein
+         Bildschirmleser etwas davon mitbekam: Wer nicht sieht, erfuhr
+         nicht, ob das Speichern geklappt hat. role="status" und
+         aria-live sagen sie an, ohne die laufende Vorlesung zu
+         unterbrechen. -->
+    <div id="meldung" class="meldung" role="status" aria-live="polite" hidden></div>
 
-    <script src="/app.js?v=20260718164628"></script>
+    <script src="/app.js?v=20260810160855"></script>
 </body>
 </html>

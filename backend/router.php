@@ -31,7 +31,7 @@ $mime = [
 
 $path = realpath($frontend . $uri);
 if ($uri !== '/' && $path !== false
-    && strpos($path, $frontend) === 0 && is_file($path)) {
+    && strpos($path, $frontend . DIRECTORY_SEPARATOR) === 0 && is_file($path)) {
     $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
     header('Content-Type: ' . ($mime[$ext] ?? 'application/octet-stream'));
     readfile($path);
