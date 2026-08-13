@@ -151,15 +151,6 @@ button.gefahr { background: transparent; border-color: var(--warn); color: var(-
 button.klein { padding: .25rem .55rem; font-size: .82rem; }
 button:disabled { opacity: .5; cursor: default; }
 
-/* In der farbigen Kopfleiste stehen Knöpfe auf dem Akzent. Die
-   projekteigene Regel oben würde sie dort tafelgrün auf tafelgrün
-   malen – deshalb die Ausnahme. */
-.ci-leiste--farbig button {
-    background: transparent;
-    border-color: var(--ci-auf-leiste-linie);
-    color: var(--ci-flaeche);
-}
-.ci-leiste--farbig button:hover { background: var(--ci-auf-leiste-hover); }
 
 /* --- Tabellen -----------------------------------------------
    app.js erzeugt Tabellen ohne Klasse; ci-komponenten.css greift nur

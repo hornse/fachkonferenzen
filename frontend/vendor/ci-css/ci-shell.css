@@ -331,14 +331,21 @@
 
 .ci-huelle--kopf .ci-nav {
     display: flex;
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     gap: .2rem;
     padding: 0;
-    overflow-x: auto;
-    /* Kein sichtbarer Scrollbalken quer durch die Kopfleiste. */
-    scrollbar-width: none;
+    /* BEWUSST KEIN overflow-x. Ein Scrollbalken in der Navigation ist
+       kein Ventil, sondern ein verstecktes Versagen: Man sieht nicht,
+       dass Punkte fehlen, und schiebt monatelang hin und her. Passen
+       die Punkte nicht, muss die Umschaltgrenze unten steigen - und
+       das faellt sofort auf. */
 }
-.ci-huelle--kopf .ci-nav::-webkit-scrollbar { display: none; }
+
+/* Symbole tragen in einer Kopfleiste nichts bei: Der Text steht
+   daneben. In der Seitenleiste sind sie unverzichtbar, weil dort der
+   eingeklappte Zustand nur sie zeigt - hier kosten sie nur Breite.
+   Etwa 30 % davon, und genau die fehlten bei sechs Punkten. */
+.ci-huelle--kopf .ci-nav .ci-symbol { display: none; }
 
 .ci-huelle--kopf .ci-nav a,
 .ci-huelle--kopf .ci-nav button {
@@ -384,22 +391,14 @@
     .ci-huelle--kopf .ci-schild-schule { display: block; }
 }
 
-/* ---- Kopfleiste auf schmalen Anzeigen ----------------------
-   Dieselbe Schublade wie bei der Seitenleiste: Die Navigation klappt
-   unter den Kopf, statt als Streifen zu schrumpfen. */
-@media (max-width: 48rem) {
-    .ci-huelle--kopf .ci-leiste {
-        position: sticky;
-        transform: none;
-        width: auto;
-        flex-basis: auto;
-        box-shadow: none;
-    }
-
-    .ci-huelle--kopf .ci-leiste-innen {
-        flex-wrap: wrap;
-        padding: 0 1rem;
-    }
+/* ---- Umschaltgrenze der Kopfleiste -------------------------
+   Die Seitenleiste klappt bei 768 px ein; fuer die Kopfleiste ist das
+   zu spaet. Sechs Punkte mit Benutzername und Abmelden brauchen rund
+   1100 px, darunter draengeln sie sich. Die Grenze richtet sich also
+   nach dem Inhalt, nicht nach einer runden Zahl.
+   ------------------------------------------------------------ */
+@media (max-width: 68.75rem) {
+    .ci-huelle--kopf .ci-leiste-innen { flex-wrap: wrap; }
 
     .ci-huelle--kopf .ci-nav {
         display: none;
@@ -409,8 +408,11 @@
         padding: var(--ci-abstand-s) 0;
         border-top: 1px solid var(--ci-linie);
     }
-
     .ci-huelle--kopf[data-leiste="offen"] .ci-nav { display: flex; }
+
+    /* Aufgeklappt untereinander: Dort helfen die Symbole wieder, weil
+       die Punkte wie in einer Seitenleiste stehen. */
+    .ci-huelle--kopf .ci-nav .ci-symbol { display: inline; }
 
     .ci-huelle--kopf .ci-nav a,
     .ci-huelle--kopf .ci-nav button {
@@ -424,119 +426,26 @@
         border-bottom-color: transparent;
     }
 
-    /* Der Menüknopf sitzt in der Kopfleiste selbst, nicht über dem
-       Inhalt – dort wäre er vom Kopf getrennt und wirkte verloren. */
     .ci-huelle--kopf .ci-menue-knopf {
         display: inline-flex;
         order: 2;
         margin: 0 0 0 auto;
     }
-
-    /* Die Abdeckung braucht es hier nicht: Die Navigation schiebt den
-       Inhalt nach unten, statt ihn zu verdecken. */
     .ci-huelle--kopf .ci-abdeckung { display: none; }
 }
 
-
-/* ============================================================
-   Farbige Leiste
-
-   .ci-leiste--farbig faerbt die Leiste in der Akzentfarbe der
-   Anwendung, Schrift und Symbole in Weiss.
-
-   Warum als Variante und nicht fuer alle: Die Akzentfarbe soll
-   zeigen, in welcher Anwendung man ist. Eine farbige Leiste tut das
-   auf einen Blick; ein drei Pixel breiter Unterstrich am aktiven
-   Punkt tut es nicht. Umgekehrt kommen Anwendungen mit vielen
-   Navigationspunkten mit einer hellen Leiste ruhiger daher – deshalb
-   die Wahl.
-
-   Funktioniert mit beiden Geruestvarianten.
-   ============================================================ */
-
-.ci-leiste--farbig {
-    background: var(--ci-akzent);
-    color: var(--ci-flaeche);
-    border-color: var(--ci-akzent-text);
-}
-
-.ci-leiste--farbig .ci-schild {
-    border-bottom-color: var(--ci-auf-leiste-linie);
-}
-
-.ci-leiste--farbig .ci-schild-name { color: var(--ci-flaeche); }
-
-/* Kein opacity auf Text: Es multipliziert sich mit dem Untergrund
-   und ergibt je nach Flaeche einen anderen Ton. Stattdessen die
-   Akzentflaeche - sie ist auf jeden Akzent abgestimmt. */
-.ci-leiste--farbig .ci-schild-schule { color: var(--ci-akzent-flaeche); }
-
-/* Der Platzhalter steht auf der Akzentflaeche selbst und braucht
-   deshalb die umgekehrte Faerbung. */
-.ci-leiste--farbig .ci-schild-platzhalter {
-    background: var(--ci-flaeche);
-    color: var(--ci-akzent);
-}
-
-.ci-leiste--farbig .ci-nav a,
-.ci-leiste--farbig .ci-nav button,
-.ci-leiste--farbig .ci-leiste-schalter {
-    color: var(--ci-akzent-flaeche);
-}
-
-.ci-leiste--farbig .ci-nav a:hover,
-.ci-leiste--farbig .ci-nav button:hover,
-.ci-leiste--farbig .ci-leiste-schalter:hover {
-    background: var(--ci-auf-leiste-hover);
-    color: var(--ci-flaeche);
-}
-
-.ci-leiste--farbig .ci-nav [aria-current="page"],
-.ci-leiste--farbig .ci-nav [aria-selected="true"] {
-    background: var(--ci-auf-leiste-aktiv);
-    border-left-color: var(--ci-flaeche);
-    border-bottom-color: transparent;
-    color: var(--ci-flaeche);
-}
-
-/* In der Kopfleiste wird unten markiert, nicht links. */
-.ci-huelle--kopf .ci-leiste--farbig .ci-nav [aria-current="page"],
-.ci-huelle--kopf .ci-leiste--farbig .ci-nav [aria-selected="true"] {
-    border-left-color: transparent;
-    border-bottom-color: var(--ci-flaeche);
-}
-
-.ci-leiste--farbig .ci-nav-trenner { background: var(--ci-auf-leiste-linie); }
-
-.ci-leiste--farbig .ci-leiste-fuss {
-    border-top-color: var(--ci-auf-leiste-linie);
-    color: var(--ci-akzent-flaeche);
-}
-
-.ci-leiste--farbig .ci-kopf-rechts { color: var(--ci-akzent-flaeche); }
-
-/* Knoepfe in der farbigen Leiste stehen auf dem Akzent, nicht auf
-   Weiss - ci-knopf--leise waere dort unsichtbar. */
-.ci-leiste--farbig .ci-knopf {
-    background: transparent;
-    border-color: var(--ci-auf-leiste-linie);
-    color: var(--ci-flaeche);
-}
-.ci-leiste--farbig .ci-knopf:hover:not([disabled]) {
-    background: var(--ci-auf-leiste-hover);
-    border-color: var(--ci-flaeche);
-}
-
-.ci-leiste--farbig .ci-menue-knopf {
-    background: transparent;
-    border-color: var(--ci-auf-leiste-linie);
-    color: var(--ci-flaeche);
-}
-
-/* Der Abmelden-Punkt bleibt auch hier abgesetzt, aber Rot auf einem
-   farbigen Grund ist selten lesbar - deshalb nur ueber die Flaeche. */
-.ci-leiste--farbig .ci-nav .ci-abmelden { color: var(--ci-akzent-flaeche); }
-.ci-leiste--farbig .ci-nav .ci-abmelden:hover {
-    background: var(--ci-auf-leiste-hover);
-    color: var(--ci-flaeche);
+/* ---- Kopfleiste auf sehr schmalen Anzeigen -----------------
+   Die Umschaltung selbst steht oben bei 68.75rem. Hier bleibt nur,
+   was die gemeinsame 48rem-Regel fuer die Seitenleiste sonst auch auf
+   die Kopfleiste anwenden wuerde.
+   ------------------------------------------------------------ */
+@media (max-width: 48rem) {
+    .ci-huelle--kopf .ci-leiste {
+        position: sticky;
+        transform: none;
+        width: auto;
+        flex-basis: auto;
+        box-shadow: none;
+    }
+    .ci-huelle--kopf .ci-leiste-innen { padding: 0 1rem; }
 }

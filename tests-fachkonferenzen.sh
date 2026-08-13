@@ -84,9 +84,11 @@ grep -q 'ci-komponenten.css' "$HTML" \
     && gruen "ci-komponenten.css eingebunden" || rot "ci-komponenten.css fehlt"
 grep -q 'data-ci-icons' "$HTML" \
     && gruen "Sprite-Pfad durchgereicht" || rot "data-ci-icons fehlt"
-# Ohne die Variante wäre die tafelgrüne Kopfleiste ersatzlos weiß.
-grep -q 'ci-leiste ci-leiste--farbig' "$HTML" \
-    && gruen "Kopfleiste bleibt tafelgrün" || rot "farbige Leiste fehlt"
+# Entschieden: helle Leiste in allen fünf Anwendungen. Die Akzentfarbe
+# markiert den aktiven Punkt, nicht die Fläche.
+grep -q 'ci-leiste--farbig' "$HTML" \
+    && rot "farbige Leiste – entschieden ist hell für alle" \
+    || gruen "helle Leiste wie in der übrigen Reihe"
 grep -q "aria-current" "$JS" \
     && gruen "aktiver Punkt über aria-current" || rot "aktiver Punkt nur über Klasse"
 grep -q "navPunkt" "$JS" \
