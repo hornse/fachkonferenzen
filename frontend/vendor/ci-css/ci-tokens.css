@@ -1,4 +1,4 @@
-/* VENDORED aus hornse/ci-css v1.2.1 – dort ändern, hierher kopieren! */
+/* VENDORED aus hornse/ci-css v1.4.0 – dort ändern, hierher kopieren! */
 /* ============================================================
    ci-tokens.css – Design-Tokens der FRG-Projektreihe
    Stufe 1 von 2. Enthält ausschließlich Werte, keine Regeln.
@@ -130,6 +130,14 @@
 
     --ci-zeilenhoehe: 1.55;
 
+    /* ---- Aufhellungen auf farbigem Grund --------------------
+       Fuer .ci-leiste--farbig: Weiss mit Transparenz statt eigener
+       Farbwerte. Dadurch passen sie zu jeder Akzentfarbe, ohne dass
+       je Projekt drei weitere Toene gepflegt werden muessen. */
+    --ci-auf-leiste-hover:  rgba(255, 255, 255, .12);
+    --ci-auf-leiste-aktiv:  rgba(255, 255, 255, .18);
+    --ci-auf-leiste-linie:  rgba(255, 255, 255, .45);
+
     /* ---- Wirkung ------------------------------------------- */
     --ci-schatten: 0 1px 2px rgba(28, 39, 51, .08),
                    0 4px 12px rgba(28, 39, 51, .05);
@@ -168,16 +176,22 @@
     --ci-akzent-text:    #1f4034;
 }
 
-/* ACHTUNG: Für die folgenden drei Projekte lag mir kein
-   Farbwert aus dem Repo vor. Sie sind nach den Screenshots
-   geschätzt und gehören beim ersten Einbinden geprüft und
-   gegebenenfalls korrigiert. */
+/* Projektstunden führte bis August 2026 #2d5a3d – ein Grün, das dem
+   Tafelgrün von fachkonferenzen (#2e5b4c) so nahe kommt, dass beide
+   Anwendungen aus dem Gedächtnis nicht auseinanderzuhalten waren.
+   Damit wäre der Zweck der Akzentfarbe verfehlt: beim Tabwechsel
+   erkennen, wo man ist. Der Ton ist deshalb kräftiger und gelbstichiger
+   gewählt – nah genug am Gewohnten, deutlich genug daneben. */
 [data-projekt="projektstunden"] {
     --ci-akzent:         #3b6d11;
     --ci-akzent-hover:   #4e8b1a;
     --ci-akzent-flaeche: #eef5e4;
     --ci-akzent-text:    #2b5009;
 }
+
+/* ACHTUNG: Für schulprozesse lag mir kein Farbwert aus dem Repo vor.
+   Der Wert ist nach dem Screenshot geschätzt und gehört beim ersten
+   Einbinden geprüft. */
 
 [data-projekt="schulprozesse"] {
     --ci-akzent:         #534ab7;

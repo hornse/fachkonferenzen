@@ -1,0 +1,394 @@
+/* VENDORED aus hornse/ci-css v1.4.0 – dort ändern, hierher kopieren! */
+/* ============================================================
+   ci-komponenten.css – Bausteine der FRG-Projektreihe
+   Stufe 2 von 2. Setzt ci-tokens.css voraus.
+
+   REGEL: In dieser Datei steht kein einziger Farbwert. Jede Farbe
+   kommt aus einer Variablen von ci-tokens.css. tests/pruefe.sh
+   prüft das automatisch – wer hier ein #rrggbb einträgt, bekommt
+   einen roten Test.
+
+   Alle Klassen tragen das Präfix ci-. Das ist kein Selbstzweck:
+   Während der Umstellung sind in jedem Projekt beide CSS-Dateien
+   gleichzeitig geladen, und ohne Präfix würde .karte aus diesem
+   Modul still mit .karte aus dem Projekt kollidieren.
+
+   Copyright (C) 2026 Sebastian Horn, Friedrich-Rückert-Gymnasium
+   SPDX-License-Identifier: GPL-3.0-or-later
+   ci-css v1.0.0
+   ============================================================ */
+
+/* ---- Grundlage --------------------------------------------
+   Wird über die Klasse ci-seite am <body> aktiviert, damit ein
+   Projekt schrittweise umstellen kann, ohne dass sich beim
+   Einbinden sofort alles ändert. */
+
+.ci-seite {
+    margin: 0;
+    background: var(--ci-grund);
+    color: var(--ci-text);
+    font-family: var(--ci-schrift);
+    font-size: var(--ci-groesse-normal);
+    line-height: var(--ci-zeilenhoehe);
+    -webkit-text-size-adjust: 100%;
+}
+
+.ci-seite *,
+.ci-seite *::before,
+.ci-seite *::after { box-sizing: border-box; }
+
+/* Ein sichtbarer Fokusring auf allem, was bedienbar ist. */
+.ci-seite :focus-visible {
+    outline: none;
+    box-shadow: var(--ci-fokus);
+    border-radius: var(--ci-radius);
+}
+
+/* ---- Karten ----------------------------------------------- */
+
+.ci-karte {
+    background: var(--ci-flaeche);
+    border: 1px solid var(--ci-linie);
+    border-radius: var(--ci-radius-gross);
+    box-shadow: var(--ci-schatten);
+    padding: var(--ci-abstand-m) 1.25rem;
+    margin-bottom: var(--ci-abstand-m);
+}
+
+.ci-karte > h2,
+.ci-karte > h3 {
+    margin: 0 0 var(--ci-abstand-s);
+    font-size: var(--ci-groesse-gross);
+    font-weight: 600;
+}
+
+/* Für abgeschaltete Einträge: sichtbar, aber zurückgenommen. */
+.ci-karte--still { opacity: .55; }
+
+/* Die Karte, an der gerade gearbeitet wird.
+   Ein Editor, der unter einer Liste aufklappt, verliert sonst den
+   Bezug: Man sieht ein Formular und weiß nicht mehr, zu welchem
+   Eintrag es gehört. Der Streifen links ist kräftiger als eine bloße
+   Tönung – auf einem hellen Bildschirm im Sonnenlicht bleibt eine
+   3-Prozent-Hintergrundfarbe unsichtbar. */
+.ci-karte--gewaehlt {
+    border-color: var(--ci-akzent);
+    border-left-width: 4px;
+    background: var(--ci-akzent-flaeche);
+}
+
+/* Klammert Karte und zugehörigen Editor optisch zusammen. */
+.ci-karte--gewaehlt + .ci-karte,
+.ci-bezug {
+    border-left: 4px solid var(--ci-akzent);
+}
+
+/* ---- Überschriften ---------------------------------------- */
+
+.ci-titel {
+    margin: 0 0 var(--ci-abstand-xs);
+    font-size: var(--ci-groesse-titel);
+    font-weight: 600;
+    line-height: 1.25;
+}
+
+.ci-untertitel {
+    margin: 0 0 var(--ci-abstand-m);
+    color: var(--ci-text-blass);
+    font-size: var(--ci-groesse-klein);
+}
+
+/* ---- Knöpfe -----------------------------------------------
+   Drei Ausprägungen, mehr braucht es nicht: gefüllt für die
+   Hauptaktion, leise für alles Weitere, gefährlich für alles,
+   was löscht oder unumkehrbar ist. */
+
+.ci-knopf {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ci-abstand-xs);
+    padding: .55rem 1rem;
+    border: 1px solid var(--ci-akzent);
+    border-radius: var(--ci-radius);
+    background: var(--ci-akzent);
+    color: var(--ci-flaeche);
+    font: inherit;
+    line-height: 1.2;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background var(--ci-zeit), border-color var(--ci-zeit);
+}
+
+.ci-knopf:hover:not([disabled]) {
+    background: var(--ci-akzent-hover);
+    border-color: var(--ci-akzent-hover);
+}
+
+.ci-knopf[disabled],
+.ci-knopf[aria-disabled="true"] { opacity: .55; cursor: default; }
+
+.ci-knopf--leise {
+    background: var(--ci-flaeche);
+    color: var(--ci-akzent);
+}
+.ci-knopf--leise:hover:not([disabled]) {
+    background: var(--ci-akzent-flaeche);
+    border-color: var(--ci-akzent);
+}
+
+.ci-knopf--gefahr {
+    background: var(--ci-flaeche);
+    color: var(--ci-fehler);
+    border-color: var(--ci-fehler);
+}
+.ci-knopf--gefahr:hover:not([disabled]) {
+    background: var(--ci-fehler-flaeche);
+}
+
+.ci-knopf--klein { padding: .35rem .7rem; font-size: var(--ci-groesse-klein); }
+
+/* ---- Formulare -------------------------------------------- */
+
+.ci-feld { margin-bottom: var(--ci-abstand-s); }
+
+.ci-feld > label,
+.ci-beschriftung {
+    display: block;
+    margin-bottom: var(--ci-abstand-xs);
+    color: var(--ci-text-blass);
+    font-size: var(--ci-groesse-klein);
+}
+
+.ci-seite input[type="text"],
+.ci-seite input[type="url"],
+.ci-seite input[type="email"],
+.ci-seite input[type="password"],
+.ci-seite input[type="number"],
+.ci-seite input[type="search"],
+.ci-seite input[type="date"],
+.ci-seite input[type="time"],
+.ci-seite input[type="file"],
+.ci-seite select,
+.ci-seite textarea {
+    width: 100%;
+    max-width: var(--ci-feld-breite);
+    padding: .55rem .65rem;
+    border: 1px solid var(--ci-linie);
+    border-radius: var(--ci-radius);
+    background: var(--ci-flaeche);
+    color: var(--ci-text);
+    font: inherit;
+}
+
+.ci-seite input:hover:not([disabled]),
+.ci-seite select:hover:not([disabled]),
+.ci-seite textarea:hover:not([disabled]) { border-color: var(--ci-linie-stark); }
+
+.ci-seite input[disabled],
+.ci-seite select[disabled],
+.ci-seite textarea[disabled] {
+    background: var(--ci-flaeche-2);
+    color: var(--ci-text-schwach);
+}
+
+.ci-seite ::placeholder { color: var(--ci-text-schwach); opacity: 1; }
+
+/* Hilfstext unter einem Feld. */
+.ci-hilfe {
+    margin-top: var(--ci-abstand-xs);
+    color: var(--ci-text-blass);
+    font-size: var(--ci-groesse-klein);
+}
+
+/* Nebeneinander, solange Platz ist. */
+.ci-zeile {
+    display: flex;
+    gap: var(--ci-abstand-m);
+    align-items: flex-start;
+    flex-wrap: wrap;
+}
+.ci-zeile > .ci-wachsen { flex: 1 1 14rem; min-width: 0; }
+
+/* Für Felder, die wirklich Breite brauchen - lange Adressen etwa. */
+.ci-feld--breit input,
+.ci-feld--breit select,
+.ci-feld--breit textarea { max-width: none; }
+
+/* In einer ci-zeile begrenzt bereits der Flex-Anteil; dort würde die
+   zusätzliche Obergrenze nur Lücken erzeugen. */
+.ci-zeile input,
+.ci-zeile select,
+.ci-zeile textarea { max-width: none; }
+
+/* Ankreuzfelder als Pillen – auf einem Tablet deutlich leichter
+   zu treffen als ein nacktes Kästchen. */
+.ci-kaesten { display: flex; flex-wrap: wrap; gap: var(--ci-abstand-s); }
+
+.ci-kaesten label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ci-abstand-xs);
+    margin: 0;
+    padding: .3rem .75rem;
+    border: 1px solid var(--ci-linie);
+    border-radius: var(--ci-radius-pille);
+    background: var(--ci-flaeche);
+    color: var(--ci-text);
+    font-size: var(--ci-groesse-klein);
+    cursor: pointer;
+}
+.ci-kaesten label:hover { border-color: var(--ci-linie-stark); }
+.ci-kaesten input { margin: 0; accent-color: var(--ci-akzent); }
+
+/* Aufklappbereich für selten gebrauchte Einstellungen. */
+.ci-erweitert {
+    margin-top: var(--ci-abstand-xs);
+    padding-top: var(--ci-abstand-s);
+    border-top: 1px dashed var(--ci-linie);
+}
+.ci-erweitert > summary {
+    margin-bottom: var(--ci-abstand-s);
+    color: var(--ci-akzent);
+    font-size: var(--ci-groesse-klein);
+    cursor: pointer;
+    list-style-position: inside;
+}
+
+/* ---- Raster -----------------------------------------------
+   Für Listen aus gleichartigen Karten: Bildschirme, Inhalte,
+   Werkstätten. Statt einer langen Spalte fließen sie auf breiten
+   Anzeigen in zwei oder drei Spalten - so sind bei sechs Bildschirmen
+   alle auf einen Blick zu sehen.
+
+   auto-fill statt auto-fit: Bei wenigen Karten bleiben sie in ihrer
+   natürlichen Breite stehen, statt sich über die ganze Zeile zu
+   dehnen. Eine einzelne Karte, die 1200px breit ist, sieht aus wie
+   ein Fehler. */
+.ci-raster {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(var(--ci-raster-min), 1fr));
+    gap: var(--ci-abstand-m);
+    align-items: start;
+    margin-bottom: var(--ci-abstand-m);
+}
+
+/* Im Raster regelt der Abstand das Gitter, nicht die Karte. */
+.ci-raster > .ci-karte { margin-bottom: 0; }
+
+/* ---- Marken ----------------------------------------------- */
+
+.ci-marke {
+    display: inline-block;
+    padding: .1rem .55rem;
+    border: 1px solid var(--ci-linie);
+    border-radius: var(--ci-radius-pille);
+    background: var(--ci-grund);
+    color: var(--ci-text-blass);
+    font-size: .75rem;
+    vertical-align: middle;
+}
+
+.ci-marke--akzent {
+    border-color: var(--ci-akzent);
+    background: var(--ci-akzent-flaeche);
+    color: var(--ci-akzent-text);
+}
+.ci-marke--erfolg {
+    border-color: var(--ci-erfolg);
+    background: var(--ci-erfolg-flaeche);
+    color: var(--ci-erfolg-text);
+}
+.ci-marke--warnung {
+    border-color: var(--ci-warnung);
+    background: var(--ci-warnung-flaeche);
+    color: var(--ci-warnung-text);
+}
+.ci-marke--fehler {
+    border-color: var(--ci-fehler);
+    background: var(--ci-fehler-flaeche);
+    color: var(--ci-fehler-text);
+}
+
+/* ---- Meldungen -------------------------------------------- */
+
+.ci-hinweis {
+    margin-bottom: var(--ci-abstand-m);
+    padding: .7rem .9rem;
+    border: 1px solid var(--ci-linie);
+    border-radius: var(--ci-radius);
+    background: var(--ci-flaeche);
+    font-size: .92rem;
+}
+
+.ci-hinweis--erfolg {
+    border-color: var(--ci-erfolg);
+    background: var(--ci-erfolg-flaeche);
+    color: var(--ci-erfolg-text);
+}
+.ci-hinweis--warnung {
+    border-color: var(--ci-warnung);
+    background: var(--ci-warnung-flaeche);
+    color: var(--ci-warnung-text);
+}
+.ci-hinweis--fehler {
+    border-color: var(--ci-fehler);
+    background: var(--ci-fehler-flaeche);
+    color: var(--ci-fehler-text);
+}
+
+/* ---- Tabellen --------------------------------------------- */
+
+.ci-tabelle {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .92rem;
+}
+
+.ci-tabelle th,
+.ci-tabelle td {
+    padding: .55rem .5rem;
+    border-bottom: 1px solid var(--ci-linie);
+    text-align: left;
+    vertical-align: top;
+}
+
+.ci-tabelle th {
+    color: var(--ci-text-blass);
+    font-size: .82rem;
+    font-weight: 600;
+}
+
+.ci-tabelle .ci-rechts { text-align: right; }
+.ci-tabelle tbody tr:last-child td { border-bottom: 0; }
+
+/* ---- Hilfsklassen ----------------------------------------- */
+
+.ci-blass  { color: var(--ci-text-blass); font-size: .87rem; }
+.ci-schwach { color: var(--ci-text-schwach); }
+.ci-mono   { font-family: var(--ci-schrift-mono); }
+
+/* Leerzustand: eine Einladung, keine Entschuldigung. */
+.ci-leer {
+    padding: var(--ci-abstand-xl) var(--ci-abstand-m);
+    color: var(--ci-text-blass);
+    text-align: center;
+}
+
+/* Nur für Bildschirmleser sichtbar. */
+.ci-nur-vorlesen {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+/* ---- Schmale Anzeigen ------------------------------------- */
+
+@media (max-width: 40rem) {
+    .ci-karte { padding: var(--ci-abstand-s); }
+    .ci-zeile { gap: var(--ci-abstand-s); }
+}

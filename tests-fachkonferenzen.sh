@@ -75,6 +75,34 @@ grep -q 'ci-tokens.css' "$HTML" \
     && gruen "Symbolsatz liegt bereit" || rot "Symbolsatz fehlt"
 
 echo ""
+echo "Gerüst"
+grep -q 'ci-huelle--kopf' "$HTML" \
+    && gruen "Kopfleisten-Variante eingebunden" || rot "kein ci-huelle--kopf"
+grep -q 'ci-shell.css' "$HTML" \
+    && gruen "ci-shell.css eingebunden" || rot "ci-shell.css fehlt"
+grep -q 'ci-komponenten.css' "$HTML" \
+    && gruen "ci-komponenten.css eingebunden" || rot "ci-komponenten.css fehlt"
+grep -q 'data-ci-icons' "$HTML" \
+    && gruen "Sprite-Pfad durchgereicht" || rot "data-ci-icons fehlt"
+# Ohne die Variante wäre die tafelgrüne Kopfleiste ersatzlos weiß.
+grep -q 'ci-leiste ci-leiste--farbig' "$HTML" \
+    && gruen "Kopfleiste bleibt tafelgrün" || rot "farbige Leiste fehlt"
+grep -q "aria-current" "$JS" \
+    && gruen "aktiver Punkt über aria-current" || rot "aktiver Punkt nur über Klasse"
+grep -q "navPunkt" "$JS" \
+    && gruen "Navigation mit Symbolen" || rot "keine Symbole in der Navigation"
+# Die alten Kopfregeln muss das Modul ersetzen, nicht doppeln.
+grep -qE '^\.kopf |^\.kopf-innen|^\.nav \{' "$CSS" \
+    && rot "eigene Kopfregeln noch vorhanden" || gruen "keine doppelten Kopfregeln"
+
+FEHLENDE=""
+for N in $(grep -oE "ci-i-[a-z]+" "$JS" "$HTML" | sed 's/.*://' | sort -u); do
+    grep -q "id=\"$N\"" frontend/vendor/ci-css/ci-icons.svg || FEHLENDE="$FEHLENDE $N"
+done
+[ -z "$FEHLENDE" ] && gruen "alle benutzten Symbole existieren im Sprite" \
+    || rot "im Sprite fehlen:$FEHLENDE"
+
+echo ""
 echo "Behobene Mängel"
 grep -q 'class="skip-link"' "$HTML" \
     && gruen "Sprungmarke zum Inhalt vorhanden" || rot "keine Sprungmarke"

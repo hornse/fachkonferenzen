@@ -8,38 +8,63 @@
     <!-- Tokens zuerst, die projekteigene Datei zuletzt: So gewinnt
          style.css im Zweifel, und die Werte kommen dennoch aus einer
          Quelle. -->
-    <link rel="stylesheet" href="/vendor/ci-css/ci-tokens.css?v=20260810160855">
-    <link rel="stylesheet" href="/style.css?v=20260810160855">
+    <link rel="stylesheet" href="/vendor/ci-css/ci-tokens.css?v=20260813140429">
+    <link rel="stylesheet" href="/vendor/ci-css/ci-komponenten.css?v=20260813140429">
+    <link rel="stylesheet" href="/vendor/ci-css/ci-shell.css?v=20260813140429">
+    <link rel="stylesheet" href="/style.css?v=20260813140429">
 </head>
-<body>
-    <a href="#ansicht" class="skip-link">Zum Inhalt springen</a>
+<body class="ci-seite">
 
-    <header class="kopf">
-        <div class="kopf-innen">
-            <a href="#/" class="marke">
-                <span class="marke-symbol" aria-hidden="true">§</span>
-                <span class="marke-text">Fachkonferenzen<small>Friedrich-Rückert-Gymnasium</small></span>
+<a href="#ansicht" class="skip-link">Zum Inhalt springen</a>
+
+<!-- Gerüst aus hornse/ci-css, Variante Kopfleiste: fünf
+     Navigationspunkte. Eine Seitenleiste verschenkte hier ein Sechstel
+     der Bildschirmbreite an vier Wörter. -->
+<div class="ci-huelle ci-huelle--kopf" data-ci-huelle data-leiste="voll"
+     data-ci-icons="/vendor/ci-css/ci-icons.svg?v=20260813140429">
+
+    <!-- ci-leiste--farbig: Die tafelgrüne Kopfleiste ist die Kennfarbe
+         dieser Anwendung. Ohne die Variante wäre sie beim Umbau auf das
+         Modul ersatzlos weiß geworden. -->
+    <header class="ci-leiste ci-leiste--farbig">
+        <div class="ci-leiste-innen">
+            <a href="#/" class="ci-schild">
+                <span class="ci-schild-platzhalter" aria-hidden="true">§</span>
+                <span class="ci-schild-text">
+                    <span class="ci-schild-name">Fachkonferenzen</span>
+                    <span class="ci-schild-schule">Friedrich-Rückert-Gymnasium</span>
+                </span>
             </a>
-            <nav id="nav" class="nav"></nav>
-            <div id="benutzer" class="benutzer"></div>
+
+            <button type="button" class="ci-menue-knopf" data-ci-menue aria-expanded="false">
+                <svg class="ci-symbol" aria-hidden="true"><use href="/vendor/ci-css/ci-icons.svg#ci-i-menue"></use></svg>
+                Menü
+            </button>
+
+            <nav id="nav" class="ci-nav" aria-label="Hauptnavigation"></nav>
+            <div id="benutzer" class="ci-kopf-rechts"></div>
         </div>
     </header>
 
-    <!-- aria-live stand vorher hier auf dem GESAMTEN Inhaltsbereich.
-         Bei jedem Ansichtswechsel wurde damit die komplette Seite
+    <!-- aria-live stand vorher auf dem GESAMTEN Inhaltsbereich. Bei
+         jedem Ansichtswechsel wurde damit die komplette Seite
          vorgelesen – gut gemeint und in der Praxis unbrauchbar.
          Stattdessen setzt app.js nach dem Wechsel den Fokus hierher;
          tabindex="-1" macht das möglich, ohne den Bereich in die
          Tabulatorreihenfolge aufzunehmen. -->
-    <main id="ansicht" class="inhalt" tabindex="-1"></main>
+    <main class="ci-inhalt">
+        <div class="ci-inhalt-innen" id="ansicht" tabindex="-1"></div>
+    </main>
+</div>
 
-    <!-- Die Meldung erschien und verschwand, ohne dass ein
-         Bildschirmleser etwas davon mitbekam: Wer nicht sieht, erfuhr
-         nicht, ob das Speichern geklappt hat. role="status" und
-         aria-live sagen sie an, ohne die laufende Vorlesung zu
-         unterbrechen. -->
-    <div id="meldung" class="meldung" role="status" aria-live="polite" hidden></div>
+<!-- Die Meldung erschien und verschwand, ohne dass ein Bildschirmleser
+     etwas davon mitbekam: Wer nicht sieht, erfuhr nicht, ob das
+     Speichern geklappt hat. role="status" sagt sie an, ohne die
+     laufende Vorlesung zu unterbrechen. Sie liegt außerhalb der Hülle,
+     weil sie fest am unteren Rand schwebt. -->
+<div id="meldung" class="meldung" role="status" aria-live="polite" hidden></div>
 
-    <script src="/app.js?v=20260810160855"></script>
+<script src="/vendor/ci-css/ci-shell.js?v=20260813140429"></script>
+<script src="/app.js?v=20260813140429"></script>
 </body>
 </html>

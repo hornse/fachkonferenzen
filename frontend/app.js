@@ -118,28 +118,44 @@ function route() {
     return ansichtTermine();
 }
 
+/**
+ * Markiert den aktiven Navigationspunkt.
+ *
+ * Über aria-current statt einer eigenen Klasse: ci-shell.css und
+ * Bildschirmleser lesen dasselbe Attribut, und der Zustand ist damit
+ * nicht nur sichtbar, sondern auch hörbar.
+ */
 function navMarkieren(aktiv) {
     $nav.querySelectorAll('a').forEach(a => {
-        a.classList.toggle('aktiv', a.dataset.ziel === aktiv);
+        if (a.dataset.ziel === aktiv) a.setAttribute('aria-current', 'page');
+        else a.removeAttribute('aria-current');
     });
+}
+
+/** Ein Navigationspunkt mit Symbol aus dem Sprite von ci-css. */
+function navPunkt(ziel, text, symbol) {
+    return `<a href="#/${ziel}" data-ziel="${ziel}">`
+        + `<svg class="ci-symbol" aria-hidden="true"><use href="#ci-i-${symbol}"></use></svg>`
+        + `<span class="ci-nav-text">${text}</span></a>`;
 }
 
 function zeigeKopf() {
     if (me.rolle === 'admin') {
-        $nav.innerHTML = `
-            <a href="#/planungen"  data-ziel="planungen">Planungen</a>
-            <a href="#/stammdaten" data-ziel="stammdaten">Stammdaten</a>
-            <a href="#/sync"       data-ziel="sync">WebUntis-Sync</a>
-            <a href="#/termine"    data-ziel="termine">Meine Termine</a>
-            <a href="#/hilfe"      data-ziel="hilfe">Hilfe</a>`;
+        $nav.innerHTML =
+              navPunkt('planungen',  'Planungen',     'kalender')
+            + navPunkt('stammdaten', 'Stammdaten',    'datei')
+            + navPunkt('sync',       'WebUntis-Sync', 'personen')
+            + navPunkt('termine',    'Meine Termine', 'uebersicht')
+            + navPunkt('hilfe',      'Hilfe',         'hilfe');
     } else {
-        $nav.innerHTML = `<a href="#/termine" data-ziel="termine">Meine Termine</a>
-            <a href="#/hilfe" data-ziel="hilfe">Hilfe</a>`;
+        $nav.innerHTML =
+              navPunkt('termine', 'Meine Termine', 'uebersicht')
+            + navPunkt('hilfe',   'Hilfe',         'hilfe');
     }
     $benutzer.innerHTML = `
         <span>${q(me.name || me.kuerzel || '')}</span>
-        <span class="rolle">${me.rolle === 'admin' ? 'Admin' : 'Lehrkraft'}</span>
-        <button type="button" id="abmelden">Abmelden</button>`;
+        <span class="ci-marke">${me.rolle === 'admin' ? 'Admin' : 'Lehrkraft'}</span>
+        <button type="button" id="abmelden" class="ci-knopf ci-knopf--leise ci-knopf--klein">Abmelden</button>`;
     document.getElementById('abmelden').onclick = async () => {
         await api('/auth/logout', { method: 'POST' });
         location.hash = '';
