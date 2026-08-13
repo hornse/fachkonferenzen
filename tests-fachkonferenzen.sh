@@ -103,6 +103,24 @@ done
     || rot "im Sprite fehlen:$FEHLENDE"
 
 echo ""
+echo "Projekteigene Klassen"
+# app.js erzeugt diese Klassen; das Modul kennt sie NICHT (dort heißen
+# sie ci-karte, ci-knopf). Wer sie hier löscht, steht ohne Karten da.
+for K in "^\.karte" "^button {" "^\.raster" "^table" "^\.chip" "^\.slot-block"; do
+    grep -qE "$K" "$CSS" \
+        && gruen "Regel für ${K#^} vorhanden" \
+        || rot "Regel für ${K#^} fehlt – app.js benutzt sie weiterhin"
+done
+NUTZT=$(grep -oE 'class="[a-z][a-z0-9 _-]*"' "$JS" | sed 's/class="//;s/"//' \
+        | tr ' ' '\n' | sort -u | grep -vE '^(ci-|nav-|$)')
+FEHLT=""
+for K in $NUTZT; do
+    grep -qE "\\.$K[ ,.{:]" "$CSS" || FEHLT="$FEHLT $K"
+done
+[ -z "$FEHLT" ] && gruen "alle von app.js gesetzten Klassen sind gestylt" \
+    || rot "ohne Regel:$FEHLT"
+
+echo ""
 echo "Behobene Mängel"
 grep -q 'class="skip-link"' "$HTML" \
     && gruen "Sprungmarke zum Inhalt vorhanden" || rot "keine Sprungmarke"
