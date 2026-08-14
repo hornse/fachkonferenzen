@@ -1,4 +1,4 @@
-/* VENDORED aus hornse/ci-css v1.4.0 – dort ändern, hierher kopieren! */
+/* VENDORED aus hornse/ci-css v1.5.1 – dort ändern, hierher kopieren! */
 /* ============================================================
    ci-shell.css – Gerüst der FRG-Projektreihe
    Stufe 3 von 3. Setzt ci-tokens.css voraus, ergänzt ci-komponenten.css.
@@ -77,6 +77,13 @@
     object-fit: contain;
     border-radius: var(--ci-radius);
 }
+
+/* Ohne diese Zeile bleibt ein Logo mit hidden-Attribut sichtbar: In
+   einem Flex-Behaelter setzt der Browser display auf block, und das
+   ueberschreibt die Vorgabe von hidden. Ergebnis waere Platzhalter
+   UND Logo nebeneinander. Gilt fuer beide gleichermassen. */
+.ci-schild-logo[hidden],
+.ci-schild-platzhalter[hidden] { display: none; }
 
 /* Platzhalter, solange kein Logo hinterlegt ist. */
 .ci-schild-platzhalter {
@@ -449,3 +456,23 @@
     }
     .ci-huelle--kopf .ci-leiste-innen { padding: 0 1rem; }
 }
+
+
+/* ============================================================
+   hidden hat das letzte Wort
+
+   Jede Regel, die `display` setzt, ueberschreibt die Vorgabe des
+   hidden-Attributs. Wer `element.hidden = true` schreibt, erwartet
+   aber, dass das Element verschwindet — und sucht den Fehler sonst
+   im JavaScript statt im CSS.
+
+   Beobachtet in signage: Die Seitenleiste blieb vor der Anmeldung
+   sichtbar, samt „Abmelden" und „Einstellungen", weil .ci-leiste
+   display:flex setzt. Der Code war richtig.
+
+   Die Regel steht am ENDE der Datei: Gleiche Spezifitaet wie eine
+   Klassenregel, aber spaeter — damit gewinnt sie. Ohne !important,
+   das ein Projekt nicht mehr uebersteuern koennte.
+   ============================================================ */
+
+[hidden] { display: none; }
