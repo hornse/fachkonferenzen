@@ -84,6 +84,11 @@ h1 + .untertitel { color: var(--tinte-blass); margin: 0 0 1.4rem; }
 
 a { color: var(--tafel); }
 
+/* Die Marke in der Kopfleiste ist ein Link zur Startansicht. Ohne
+   diese Zeile werden Anwendungsname und Schulname unterstrichen. */
+.ci-schild { text-decoration: none; color: inherit; }
+.ci-schild:hover .ci-schild-name { text-decoration: underline; }
+
 /* Sprungmarke: Ohne sie muss sich jede Tastaturbedienung bei jedem
    Seitenwechsel erst durch die Navigation arbeiten. */
 .skip-link {
@@ -98,8 +103,12 @@ a { color: var(--tafel); }
 
 /* Der Inhaltsbereich bekommt den Fokus nach einem Ansichtswechsel,
    damit Bildschirmleser dort weiterlesen statt am Seitenanfang. */
-#ansicht:focus { outline: none; }
-#ansicht:focus-visible { outline: 2px solid var(--gold); outline-offset: 4px; }
+/* Bewusst OHNE sichtbaren Rahmen: Der Fokus wird nach jedem
+   Ansichtswechsel programmatisch gesetzt, niemand ist per Tastatur
+   dorthin navigiert. Ein Rahmen um den halben Bildschirm sieht aus
+   wie ein Fehler - genau so wurde er auch gemeldet. */
+#ansicht:focus,
+#ansicht:focus-visible { outline: none; }
 
 /* --- Inhalt -------------------------------------------------
    Kopfleiste, Navigation und Inhaltsbreite kommen seit v1.5.0 aus
