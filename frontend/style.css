@@ -103,12 +103,10 @@ a { color: var(--tafel); }
 
 /* Der Inhaltsbereich bekommt den Fokus nach einem Ansichtswechsel,
    damit Bildschirmleser dort weiterlesen statt am Seitenanfang. */
-/* Bewusst OHNE sichtbaren Rahmen: Der Fokus wird nach jedem
-   Ansichtswechsel programmatisch gesetzt, niemand ist per Tastatur
-   dorthin navigiert. Ein Rahmen um den halben Bildschirm sieht aus
-   wie ein Fehler - genau so wurde er auch gemeldet. */
-#ansicht:focus,
-#ansicht:focus-visible { outline: none; }
+/* Der Fokusring am Sprungziel entfaellt seit ci-css v1.5.2 im Modul:
+   Dort ist [tabindex="-1"] ausdruecklich ausgenommen. Eine eigene
+   Regel hier waere Doppelung - und die erste Fassung griff ohnehin
+   daneben, weil sie outline setzte, das Modul aber box-shadow. */
 
 /* --- Inhalt -------------------------------------------------
    Kopfleiste, Navigation und Inhaltsbreite kommen seit v1.5.0 aus

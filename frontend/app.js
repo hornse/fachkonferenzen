@@ -163,6 +163,28 @@ function zeigeKopf() {
     };
 }
 
+/**
+ * Zeigt das Schullogo, falls frontend/logo.png vorliegt.
+ *
+ * complete pruefen statt nur auf 'load' warten: Das src-Attribut steht
+ * im HTML, das Bild laedt also schon beim Parsen - wenn dieser Code
+ * laeuft, ist das Ereignis unter Umstaenden vorbei und kommt nie
+ * wieder. Dann staenden Platzhalter UND Logo nebeneinander.
+ */
+function logoAnzeigen() {
+    const bild = document.getElementById('schild-logo');
+    const platz = document.getElementById('schild-platzhalter');
+    if (!bild || !platz) return;
+    const entscheiden = () => {
+        const da = bild.naturalWidth > 0;
+        bild.hidden = !da;
+        platz.hidden = da;
+    };
+    if (bild.complete) { entscheiden(); return; }
+    bild.addEventListener('load', entscheiden);
+    bild.addEventListener('error', () => { bild.hidden = true; platz.hidden = false; });
+}
+
 // ------------------------------------------------------------
 // Login
 // ------------------------------------------------------------
@@ -1294,4 +1316,5 @@ function ansichtHilfe(tab) {
 }
 
 // ------------------------------------------------------------
+logoAnzeigen();
 start();

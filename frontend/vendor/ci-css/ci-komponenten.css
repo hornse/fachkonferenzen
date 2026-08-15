@@ -1,4 +1,4 @@
-/* VENDORED aus hornse/ci-css v1.5.1 – dort ändern, hierher kopieren! */
+/* VENDORED aus hornse/ci-css v1.5.2 – dort ändern, hierher kopieren! */
 /* ============================================================
    ci-komponenten.css – Bausteine der FRG-Projektreihe
    Stufe 2 von 2. Setzt ci-tokens.css voraus.
@@ -37,11 +37,33 @@
 .ci-seite *::before,
 .ci-seite *::after { box-sizing: border-box; }
 
-/* Ein sichtbarer Fokusring auf allem, was bedienbar ist. */
-.ci-seite :focus-visible {
+/* Ein sichtbarer Fokusring auf allem, was bedienbar ist.
+
+   BEWUSST AUFGEZAEHLT statt `.ci-seite :focus-visible`: Der
+   Nachfahrenselektor trifft jedes Element, auch reine Sprungziele mit
+   tabindex="-1". Chrome loest :focus-visible auch bei programmatisch
+   gesetztem Fokus aus - dann lag ein Ring um den halben Bildschirm.
+   Gemeldet wurde er als „unschoener Kasten", und er war es auch.
+
+   Wer weitere Elemente fokussierbar macht, ergaenzt sie hier. */
+.ci-seite a:focus-visible,
+.ci-seite button:focus-visible,
+.ci-seite input:focus-visible,
+.ci-seite select:focus-visible,
+.ci-seite textarea:focus-visible,
+.ci-seite summary:focus-visible,
+.ci-seite [tabindex="0"]:focus-visible {
     outline: none;
     box-shadow: var(--ci-fokus);
     border-radius: var(--ci-radius);
+}
+
+/* Sprungziele bekommen KEINEN Ring: Der Fokus wird dort
+   programmatisch gesetzt, niemand ist per Tastatur hingelangt. */
+.ci-seite [tabindex="-1"]:focus,
+.ci-seite [tabindex="-1"]:focus-visible {
+    outline: none;
+    box-shadow: none;
 }
 
 /* ---- Karten ----------------------------------------------- */

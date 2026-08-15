@@ -8,10 +8,10 @@
     <!-- Tokens zuerst, die projekteigene Datei zuletzt: So gewinnt
          style.css im Zweifel, und die Werte kommen dennoch aus einer
          Quelle. -->
-    <link rel="stylesheet" href="/vendor/ci-css/ci-tokens.css?v=20260815181705">
-    <link rel="stylesheet" href="/vendor/ci-css/ci-komponenten.css?v=20260815181705">
-    <link rel="stylesheet" href="/vendor/ci-css/ci-shell.css?v=20260815181705">
-    <link rel="stylesheet" href="/style.css?v=20260815181705">
+    <link rel="stylesheet" href="/vendor/ci-css/ci-tokens.css?v=20260815183640">
+    <link rel="stylesheet" href="/vendor/ci-css/ci-komponenten.css?v=20260815183640">
+    <link rel="stylesheet" href="/vendor/ci-css/ci-shell.css?v=20260815183640">
+    <link rel="stylesheet" href="/style.css?v=20260815183640">
 </head>
 <body class="ci-seite">
 
@@ -21,12 +21,19 @@
      Navigationspunkte. Eine Seitenleiste verschenkte hier ein Sechstel
      der Bildschirmbreite an vier Wörter. -->
 <div class="ci-huelle ci-huelle--kopf" data-ci-huelle data-leiste="voll"
-     data-ci-icons="/vendor/ci-css/ci-icons.svg?v=20260815181705">
+     data-ci-icons="/vendor/ci-css/ci-icons.svg?v=20260815183640">
 
     <header class="ci-leiste">
         <div class="ci-leiste-innen">
             <a href="#/" class="ci-schild">
-                <span class="ci-schild-platzhalter" aria-hidden="true">§</span>
+                <!-- Statisches Logo: fachkonferenzen hat kein Branding
+                     (keinen Logo-Endpunkt, keine Einstellungstabelle).
+                     Liegt frontend/logo.png vor, tritt es an die Stelle
+                     des Platzhalters; sonst bleibt das Paragraphenzeichen.
+                     Ein Schullogo aendert sich alle paar Jahre – dafuer
+                     eine Verwaltungsmaske zu bauen waere unverhaeltnismaessig. -->
+                <span class="ci-schild-platzhalter" id="schild-platzhalter" aria-hidden="true">§</span>
+                <img id="schild-logo" class="ci-schild-logo" src="/logo.png" alt="" hidden>
                 <span class="ci-schild-text">
                     <span class="ci-schild-name">Fachkonferenzen</span>
                     <span class="ci-schild-schule">Friedrich-Rückert-Gymnasium</span>
@@ -61,7 +68,7 @@
      weil sie fest am unteren Rand schwebt. -->
 <div id="meldung" class="meldung" role="status" aria-live="polite" hidden></div>
 
-<script src="/vendor/ci-css/ci-shell.js?v=20260815181705"></script>
-<script src="/app.js?v=20260815181705"></script>
+<script src="/vendor/ci-css/ci-shell.js?v=20260815183640"></script>
+<script src="/app.js?v=20260815183640"></script>
 </body>
 </html>

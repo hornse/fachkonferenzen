@@ -141,6 +141,22 @@ grep -q "fokusAufInhalt" "$JS" \
     && gruen "Fokus springt nach dem Ansichtswechsel" || rot "kein Fokussprung"
 
 echo ""
+echo "Logo"
+grep -q 'id="schild-logo"' "$HTML" \
+    && gruen "Logo-Element vorhanden" || rot "kein Logo-Element"
+grep -q "logoAnzeigen" "$JS" \
+    && gruen "Logo wird nach dem Laden eingeblendet" || rot "kein Logo-Umschalter"
+perl -0777 -ne 'exit(!(/id="schild-logo"[^>]*alt=""/s))' "$HTML" \
+    && gruen "Logo ist als dekorativ ausgezeichnet" || rot "alt am Logo prüfen"
+[ -f frontend/logo.png ] \
+    && gruen "logo.png liegt bereit" \
+    || echo "  –  frontend/logo.png fehlt noch; bis dahin zeigt die Marke §"
+# Ein eigener Ring am Sprungziel waere Doppelung - das Modul regelt es.
+grep -q '#ansicht:focus-visible { outline: none' "$CSS" \
+    && rot "eigene Fokusregel – seit ci-css v1.5.2 im Modul geregelt" \
+    || gruen "Fokusring kommt aus dem Modul"
+
+echo ""
 echo "Schrift und Kontrast"
 REST_S=$(perl -0777 -pe 's{/\*.*?\*/}{}gs' "$CSS")
 printf '%s' "$REST_S" | grep -qiE 'Georgia|Palatino|Iowan|serif' \
