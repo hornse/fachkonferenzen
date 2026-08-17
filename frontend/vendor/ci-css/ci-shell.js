@@ -1,4 +1,4 @@
-/* VENDORED aus hornse/ci-css v1.5.3 – dort ändern, hierher kopieren! */
+/* VENDORED aus hornse/ci-css v1.5.4 – dort ändern, hierher kopieren! */
 /* ============================================================
    ci-shell.js – Verhalten der Seitenleiste
 
