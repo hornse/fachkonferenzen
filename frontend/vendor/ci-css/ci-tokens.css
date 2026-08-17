@@ -1,4 +1,4 @@
-/* VENDORED aus hornse/ci-css v1.5.2 – dort ändern, hierher kopieren! */
+/* VENDORED aus hornse/ci-css v1.5.3 – dort ändern, hierher kopieren! */
 /* ============================================================
    ci-tokens.css – Design-Tokens der FRG-Projektreihe
    Stufe 1 von 2. Enthält ausschließlich Werte, keine Regeln.
@@ -203,6 +203,19 @@
     --ci-akzent-hover:   #b8532f;
     --ci-akzent-flaeche: #faece7;
     --ci-akzent-text:    #712b13;
+}
+
+/* Petrol. Die größte Lücke im Farbkreis liegt zwischen dem Tafelgrün von
+   fachkonferenzen (160°) und dem Blau von sprechtag (213°); dieser Ton sitzt
+   mittig darin und hat zu beiden 26° Abstand — mehr ist bei fünf belegten
+   Tönen nicht zu holen. Bordeaux wäre rechnerisch weiter entfernt gewesen,
+   läge aber im selben roten Bereich wie signage: „welches Rot war das
+   nochmal" ist genau die Verwechslung, die die Akzentfarbe verhindern soll. */
+[data-projekt="lernzeiten"] {
+    --ci-akzent:         #0b5c65;
+    --ci-akzent-hover:   #0e737e;
+    --ci-akzent-flaeche: #edf9fa;
+    --ci-akzent-text:    #09474e;
 }
 
 /* ============================================================
