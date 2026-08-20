@@ -1,4 +1,4 @@
-/* VENDORED aus hornse/ci-css v1.5.4 – dort ändern, hierher kopieren! */
+/* VENDORED aus hornse/ci-css v1.5.5 – dort ändern, hierher kopieren! */
 /* ============================================================
    ci-shell.js – Verhalten der Seitenleiste
 
@@ -21,7 +21,6 @@
 
    Copyright (C) 2026 Sebastian Horn, Friedrich-Rückert-Gymnasium
    SPDX-License-Identifier: GPL-3.0-or-later
-   ci-css v1.1.0
    ============================================================ */
 
 'use strict';
