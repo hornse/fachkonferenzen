@@ -1,7 +1,7 @@
 <?php
 // ============================================================
 // WebUntisRest.php – Client für die INTERNE WebUntis-REST-API
-// VENDORED aus hornse/webuntis-client-php – dort ändern, hierher kopieren!
+// VENDORED aus hornse/webuntis-client-php v1.7.0 – dort ändern, hierher kopieren!
 //
 // ⚠️ UNDOKUMENTIERTE API: kann sich mit jedem WebUntis-Update
 // ändern. Für Produktivbetrieb den offiziellen JSON-RPC-Weg
@@ -23,11 +23,35 @@ class WebUntisRest
     private ?string $cookie   = null;   // "JSESSIONID=...; schoolname=_..."
     private ?string $jwt      = null;
     private ?string $tenantId = null;
+    private int $timeout      = 25;
+    private array $zusatzKopfzeilen = [];   // eigene Kopfzeilen: name => wert
 
     public function __construct(string $baseUrl, string $school)
     {
         $this->baseUrl = rtrim($baseUrl, '/');
         $this->school  = $school;
+    }
+
+    /** Timeout je Aufruf in Sekunden (Sondierung: kurz halten wegen Proxy-Limit). */
+    public function setzeTimeout(int $sekunden): void
+    {
+        $this->timeout = max(1, $sekunden);
+    }
+
+    /**
+     * Setzt eine eigene Kopfzeile, die künftig bei jeder Anfrage mitgeschickt
+     * wird (get, post, postMultipart, auch tokenHolen). Anlass: WebUntis
+     * erwartet bei schuljahresabhängigen REST-Aufrufen z. B.
+     * "X-Webuntis-Api-School-Year-Id" – ohne aktives Schuljahr (zwischen
+     * zwei Schuljahren) sonst nicht zuverlässig auszuwerten.
+     *
+     *   $rest->setzeKopfzeile('X-Webuntis-Api-School-Year-Id', '28');
+     *
+     * Ohne Aufruf ändert sich nichts am bisherigen Verhalten.
+     */
+    public function setzeKopfzeile(string $name, string $wert): void
+    {
+        $this->zusatzKopfzeilen[$name] = $wert;
     }
 
     /** Übernimmt den JSESSIONID-Cookie einer bestehenden JSON-RPC-Session. */
@@ -49,6 +73,43 @@ class WebUntisRest
         return false;
     }
 
+    /**
+     * Liest die Nutzlast des JWT aus (ohne Signaturprüfung – rein
+     * informativ). Nützlich für die Diagnose: Das Feld 'scopes' bzw.
+     * 'per' zeigt, welche Rechte das Token trägt. Beispiel: "mg:r"
+     * bedeutet nur LESEN von Mitteilungen, "mg:rw" auch Schreiben.
+     * Ohne Schreibrecht scheitert der Mitteilungsversand mit 403.
+     */
+    public function jwtDaten(): ?array
+    {
+        if ($this->jwt === null) return null;
+        $teile = explode('.', $this->jwt);
+        if (count($teile) !== 3) return null;
+        $roh = base64_decode(strtr($teile[1], '-_', '+/'), false);
+        if ($roh === false) return null;
+        $daten = json_decode($roh, true);
+        return is_array($daten) ? $daten : null;
+    }
+
+    /** Kurzform für die Diagnose: welche Rechte trägt das Token? */
+    public function jwtScopes(): array
+    {
+        $d = $this->jwtDaten();
+        if ($d === null) return [];
+        $scopes = [];
+        if (isset($d['scopes'])) {
+            if (is_array($d['scopes'])) {
+                $scopes = $d['scopes'];
+            } else {
+                $scopes = preg_split('/[\s,]+/', (string)$d['scopes']) ?: [];
+            }
+        }
+        if (isset($d['per']) && is_array($d['per'])) {
+            $scopes = array_merge($scopes, $d['per']);
+        }
+        return array_values(array_unique(array_filter($scopes)));
+    }
+
     /** Versucht, die tenant-id aus app/data zu ermitteln (optional). */
     public function tenantErmitteln(): void
     {
@@ -65,22 +126,233 @@ class WebUntisRest
     /** GET mit Bearer-Auth. Liefert ['status','contentType','text','json']. */
     public function get(string $pfad, array $query = []): array
     {
-        $extra = [];
-        if ($this->jwt !== null)      $extra[] = 'Authorization: Bearer ' . $this->jwt;
-        if ($this->tenantId !== null) $extra[] = 'tenant-id: ' . $this->tenantId;
-        return $this->rohGet($pfad . ($query ? '?' . http_build_query($query) : ''), $extra);
+        return $this->rohGet($pfad . ($query ? '?' . http_build_query($query) : ''));
     }
 
-    private function rohGet(string $pfadMitQuery, array $extraHeader = []): array
+    /**
+     * POST mit Bearer-Auth und JSON-Body.
+     * ACHTUNG: schreibender Zugriff – nur mit ausdrücklicher Absicht nutzen.
+     * Liefert ['status','contentType','text','json'].
+     */
+    public function post(string $pfad, array $daten): array
     {
-        $headers = array_merge(['Accept: application/json, text/plain'], $extraHeader);
+        $headers = $this->baueKopfzeilen(
+            'application/json, text/plain',
+            'application/json'
+        );
+
+        $ch = curl_init($this->baseUrl . $pfad);
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => json_encode($daten, JSON_UNESCAPED_UNICODE),
+            CURLOPT_HTTPHEADER     => $headers,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => $this->timeout,
+        ]);
+        $text = curl_exec($ch);
+        if ($text === false) {
+            $fehler = curl_error($ch);
+            curl_close($ch);
+            return ['status' => 0, 'contentType' => '', 'text' => 'cURL: ' . $fehler, 'json' => null];
+        }
+        $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        $ct     = (string)curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+        curl_close($ch);
+
+        $json = json_decode($text, true);
+        return ['status' => $status, 'contentType' => $ct,
+                'text' => $text, 'json' => is_array($json) ? $json : null];
+    }
+
+    /**
+     * POST mit Bearer-Auth und multipart/form-data-Body.
+     *
+     * Manche WebUntis-Endpunkte erwarten den JSON-Block NICHT als
+     * Request-Body, sondern als Datei-Teil einer Multipart-Nachricht –
+     * so verschickt die Weboberfläche z. B. Mitteilungen:
+     *
+     *   Content-Disposition: form-data; name="request"; filename="blob"
+     *   Content-Type: application/json
+     *   {"subject":"…","content":"…","recipientUserIds":[123]}
+     *
+     * @param string $pfad     z. B. '/WebUntis/api/rest/view/v2/messages/users'
+     * @param array  $daten    wird als JSON in den Teil geschrieben
+     * @param string $feldname Name des Teils (Standard 'request')
+     * @return array{status:int, contentType:string, text:string, json:?array}
+     */
+    public function postMultipart(string $pfad, array $daten,
+                                  string $feldname = 'request'): array
+    {
+        $grenze = '----WebUntisBoundary' . bin2hex(random_bytes(8));
+        $json = json_encode($daten, JSON_UNESCAPED_UNICODE);
+
+        $koerper = "--$grenze\r\n"
+            . 'Content-Disposition: form-data; name="' . $feldname
+            . '"; filename="blob"' . "\r\n"
+            . "Content-Type: application/json\r\n\r\n"
+            . $json . "\r\n"
+            . "--$grenze--\r\n";
+
+        $headers = $this->baueKopfzeilen(
+            'application/json, text/plain, */*',
+            'multipart/form-data; boundary=' . $grenze
+        );
+
+        $ch = curl_init($this->baseUrl . $pfad);
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $koerper,
+            CURLOPT_HTTPHEADER     => $headers,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => $this->timeout,
+        ]);
+        $text = curl_exec($ch);
+        if ($text === false) {
+            $fehler = curl_error($ch);
+            curl_close($ch);
+            return ['status' => 0, 'contentType' => '',
+                    'text' => 'cURL: ' . $fehler, 'json' => null];
+        }
+        $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        $ct     = (string)curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+        curl_close($ch);
+
+        $json = json_decode($text, true);
+        return ['status' => $status, 'contentType' => $ct,
+                'text' => $text, 'json' => is_array($json) ? $json : null];
+    }
+
+    /**
+     * Sucht Nachrichten-Empfänger. Belegt am 24.07.2026 durch Mitschnitt
+     * der WebUntis-Weboberfläche.
+     *
+     * Zwei Wege, je nach Rechten des angemeldeten Kontos:
+     *   Lehrkraft: GET  /v1/messages/recipients/PARENTS/search?searchText=…
+     *              (filtert serverseitig auf Erziehungsberechtigte)
+     *   Admin:     POST /v2/messages/recipients/CUSTOM/filter
+     *              {"filters":[],"searchText":"…"}  (liefert alle Rollen)
+     *
+     * Antwortstruktur (beide):
+     *   users[] mit id (USER-ID!), displayName, role
+     *   ("LEGAL_GUARDIAN" oder "STUDENT") und tags[] – bei
+     *   Erziehungsberechtigten enthalten die tags die NAMEN der Kinder.
+     *
+     * @return array{status:int, users:array}
+     */
+    public function empfaengerSuchen(string $suchtext): array
+    {
+        // 1. Lehrkraft-Weg (liefert nur Erziehungsberechtigte)
+        $r = $this->get('/WebUntis/api/rest/view/v1/messages/recipients/PARENTS/search',
+            ['searchText' => $suchtext]);
+        if ($r['status'] === 200 && isset($r['json']['users'])) {
+            return ['status' => 200, 'users' => (array)$r['json']['users']];
+        }
+
+        // 2. Admin-Weg (liefert alle Rollen, wird unten gefiltert)
+        $r2 = $this->post('/WebUntis/api/rest/view/v2/messages/recipients/CUSTOM/filter',
+            ['filters' => [], 'searchText' => $suchtext]);
+        if ($r2['status'] === 200 && isset($r2['json']['users'])) {
+            return ['status' => 200, 'users' => (array)$r2['json']['users']];
+        }
+
+        return ['status' => $r2['status'] !== 0 ? $r2['status'] : $r['status'],
+                'users' => []];
+    }
+
+    /**
+     * Löst eine benannte Empfängerliste (z. B. „alle Eltern") in ihre einzelnen
+     * Empfänger auf. Nutzt denselben CUSTOM/filter-Endpunkt, aber mit einem
+     * konkreten Filter { type: DYNAMIC|QUICK, referenceId }.
+     *
+     * Da große Listen (mehrere tausend Personen) vermutlich seitenweise
+     * geliefert werden, wird defensiv paginiert: Wir holen Seiten, bis keine
+     * neuen Empfänger mehr kommen oder eine Sicherheitsgrenze erreicht ist.
+     *
+     * Rückgabe: ['status' => int, 'users' => [...], 'seiten' => int,
+     *            'vollstaendig' => bool]
+     */
+    public function listeAufloesen(string $typ, int $referenceId,
+                                   int $maxSeiten = 100): array
+    {
+        $typ = strtoupper($typ) === 'QUICK' ? 'QUICK' : 'DYNAMIC';
+        $filter = ['filters' => [[
+            'type'  => $typ,
+            'items' => [['referenceId' => $referenceId]],
+        ]], 'searchText' => ''];
+
+        $alle = [];
+        $gesehen = [];        // user.id -> true (Duplikate/Endlosschleife vermeiden)
+        $seite = 0;
+        $letzterStatus = 0;
+        $vollstaendig = true;
+
+        while ($seite < $maxSeiten) {
+            // Verschiedene Pagination-Konventionen abdecken: viele WebUntis-
+            // Endpunkte akzeptieren start/limit. Wir setzen beides; ignoriert
+            // der Server sie, kommt einfach immer dieselbe (einzige) Seite –
+            // was wir über die Duplikaterkennung sauber abfangen.
+            $body = $filter + ['start' => $seite * 100, 'limit' => 100,
+                               'page' => $seite, 'pageSize' => 100];
+            $r = $this->post(
+                '/WebUntis/api/rest/view/v2/messages/recipients/CUSTOM/filter', $body);
+            $letzterStatus = $r['status'];
+            if ($r['status'] !== 200 || !isset($r['json']['users'])) {
+                $vollstaendig = false;
+                break;
+            }
+            $users = (array)$r['json']['users'];
+            if ($users === []) break;   // keine weiteren Empfänger
+
+            $neu = 0;
+            foreach ($users as $u) {
+                $id = (int)($u['id'] ?? 0);
+                if ($id <= 0 || isset($gesehen[$id])) continue;
+                $gesehen[$id] = true;
+                $alle[] = $u;
+                $neu++;
+            }
+            $seite++;
+            // Keine neuen Empfänger mehr -> Server paginiert nicht (oder Ende).
+            if ($neu === 0) break;
+            // Weniger als eine volle Seite -> letzte Seite erreicht.
+            if (count($users) < 100) break;
+        }
+        if ($seite >= $maxSeiten) $vollstaendig = false;
+
+        return ['status' => $letzterStatus, 'users' => $alle,
+                'seiten' => $seite, 'vollstaendig' => $vollstaendig];
+    }
+
+    /**
+     * Baut die Kopfzeilen für einen Aufruf: Accept, optional Content-Type,
+     * Authorization (falls JWT vorhanden), tenant-id (falls ermittelt),
+     * eigene Kopfzeilen aus setzeKopfzeile(), zuletzt Cookie (falls
+     * vorhanden). Eine Stelle für alle drei sendenden Methoden (rohGet,
+     * post, postMultipart) – lässt sich ohne Netzzugriff testen, weil sie
+     * kein cURL aufruft.
+     */
+    private function baueKopfzeilen(string $accept, ?string $contentType = null): array
+    {
+        $headers = ['Accept: ' . $accept];
+        if ($contentType !== null) $headers[] = 'Content-Type: ' . $contentType;
+        if ($this->jwt !== null)      $headers[] = 'Authorization: Bearer ' . $this->jwt;
+        if ($this->tenantId !== null) $headers[] = 'tenant-id: ' . $this->tenantId;
+        foreach ($this->zusatzKopfzeilen as $name => $wert) {
+            $headers[] = $name . ': ' . $wert;
+        }
         if ($this->cookie !== null) $headers[] = 'Cookie: ' . $this->cookie;
+        return $headers;
+    }
+
+    private function rohGet(string $pfadMitQuery): array
+    {
+        $headers = $this->baueKopfzeilen('application/json, text/plain');
 
         $ch = curl_init($this->baseUrl . $pfadMitQuery);
         curl_setopt_array($ch, [
             CURLOPT_HTTPHEADER     => $headers,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 25,
+            CURLOPT_TIMEOUT        => $this->timeout,
         ]);
         $text = curl_exec($ch);
         if ($text === false) {
