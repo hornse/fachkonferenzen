@@ -1,4 +1,4 @@
-/* VENDORED aus hornse/ci-css v1.5.6 – dort ändern, hierher kopieren! */
+/* VENDORED aus hornse/ci-css v1.6.0 – dort ändern, hierher kopieren! */
 /* ============================================================
    ci-komponenten.css – Bausteine der FRG-Projektreihe
    Stufe 2 von 2. Setzt ci-tokens.css voraus.
@@ -98,8 +98,11 @@
     background: var(--ci-akzent-flaeche);
 }
 
-/* Klammert Karte und zugehörigen Editor optisch zusammen. */
-.ci-karte--gewaehlt + .ci-karte,
+/* Klammert einen zugehörigen Block optisch an die gewählte Karte.
+   Wird ausdrücklich gesetzt, nicht über den Nachbarn erschlossen:
+   `.ci-karte--gewaehlt + .ci-karte` traf im Kartenraster die nächste
+   Karte DANEBEN, die mit der Auswahl nichts zu tun hat. Sie bekam
+   dann einen Akzentstreifen, ohne ausgewählt zu sein. */
 .ci-bezug {
     border-left: 4px solid var(--ci-akzent);
 }
