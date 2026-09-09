@@ -172,5 +172,67 @@ grep -q -- '--hinweis-flaeche:.*var(--ci-warnung-flaeche)' "$CSS" \
     && gruen "Hinweiskasten nutzt das Token" || rot "Hinweiskasten mit eigener Fläche"
 
 echo ""
+echo "Anmeldung"
+# Drei Pruefungen ueber den WebUntis-Anmeldepfad. Sie greifen auf die
+# FUNKTION login_webuntis, nicht auf die Datei: Rechtepruefungen an
+# bestehenden Sitzungen und die Sondierungswerkzeuge hinter
+# require_admin() duerfen sich anders verhalten — dort entscheidet kein
+# Passwort ueber den Zugang (FALLSTRICKE.md 8).
+API=backend/api/index.php
+FUNK=$(awk '
+    /^function login_webuntis\(/ { f = 1 }
+    f {
+        buf = buf $0 "\n"
+        n = gsub(/\{/, "{"); m = gsub(/\}/, "}"); tiefe += n - m
+        if (tiefe == 0 && NR > 1 && buf ~ /\{/) { printf "%s", buf; exit }
+    }' "$API" 2>/dev/null)
+
+if [ -z "$FUNK" ]; then
+    rot "Anmeldung: login_webuntis() nicht gefunden – die Pruefung fand ihre Voraussetzung nicht"
+    rot "Anmeldung: Statuscodes nicht pruefbar – Voraussetzung fehlt"
+    rot "Anmeldung: Ausnahmetext nicht pruefbar – Voraussetzung fehlt"
+else
+    # --- 1. Die Bremse greift VOR dem Anmeldeversuch ---------------
+    Z_SPERRE=$(printf '%s\n' "$FUNK" | grep -n 'anmeldung_gesperrt\|zu_viele_versuche' | head -1 | cut -d: -f1)
+    Z_AUTH=$(printf '%s\n' "$FUNK" | grep -n '\->authenticate(' | head -1 | cut -d: -f1)
+    if [ -z "$Z_AUTH" ]; then
+        rot "Anmeldung: kein authenticate()-Aufruf gefunden – prueft die Pruefung noch etwas?"
+    elif [ -z "$Z_SPERRE" ]; then
+        rot "Anmeldung: keine Brute-Force-Bremse vor dem Anmeldeversuch"
+    elif [ "$Z_SPERRE" -lt "$Z_AUTH" ]; then
+        gruen "Anmeldung: Bremse greift vor dem Anmeldeversuch (Zeile $Z_SPERRE vor $Z_AUTH)"
+    else
+        rot "Anmeldung: Bremse steht NACH dem Anmeldeversuch (Zeile $Z_SPERRE nach $Z_AUTH)"
+    fi
+
+    # --- 2. Nach der Passwortpruefung nur noch 401 -----------------
+    # Der Bereich beginnt beim authenticate()-Aufruf. Was davor liegt
+    # (Konfiguration aus, Eingabe leer), faellt vor jeder Passwortpruefung
+    # und verraet nichts ueber ein Konto.
+    NACH=$(printf '%s\n' "$FUNK" | awk '/->authenticate\(/ {f=1} f {print}' | tr '\n' ' ')
+    CODES=$(printf '%s' "$NACH" | awk '{
+        n = split($0, t, /json_err\(/)
+        for (i = 2; i <= n; i++) {
+            u = t[i]; sub(/\);.*/, "", u)
+            if (match(u, /[0-9][0-9][0-9][ \t]*$/)) print substr(u, RSTART, 3)
+        }
+    }' | sort -u | grep '^4' | tr '\n' ' ' | sed 's/ *$//')
+    if [ -z "$CODES" ]; then
+        rot "Anmeldung: kein 4xx nach der Passwortpruefung gefunden – prueft die Pruefung noch etwas?"
+    elif [ "$CODES" = "401" ]; then
+        gruen "Anmeldung lehnt einheitlich mit 401 ab"
+    else
+        rot "Anmeldung lehnt uneinheitlich ab (Statuscodes: $CODES)"
+    fi
+
+    # --- 3. Der Ausnahmetext geht nicht an den Benutzer ------------
+    if printf '%s\n' "$FUNK" | grep -qE 'json_err\([^;]*getMessage\(\)'; then
+        rot "Anmeldung: Ausnahmetext von WebUntis geht in die Antwort"
+    else
+        gruen "Anmeldung: Ausnahmetext bleibt im Protokoll"
+    fi
+fi
+
+echo ""
 if [ "$FEHLER" -eq 0 ]; then echo "ALLES GRÜN"; exit 0; fi
 echo "$FEHLER FEHLER"; exit 1

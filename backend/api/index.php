@@ -73,6 +73,56 @@ if ($seg === ['oeffentlich', 'plan'] && $method === 'GET') {
     json_out(['planungen' => $planungen]);
 }
 
+/**
+ * Nach so vielen Fehlversuchen ist fuer ANMELDUNG_SPERRE_MINUTEN Schluss.
+ * Aufbau uebernommen aus signage/backend/api/anmeldung.php.
+ */
+const ANMELDUNG_MAX_VERSUCHE   = 8;
+const ANMELDUNG_SPERRE_MINUTEN = 15;
+
+/**
+ * Einheitlicher Wortlaut fuer JEDEN Fehlschlag des Anmeldevorgangs.
+ *
+ * Falsches Passwort, Netzwerkfehler und nicht freigeschalteter Kontotyp
+ * sehen von aussen gleich aus. Waere das anders, koennte man an der
+ * Antwort ablesen, dass das Passwort stimmte (FALLSTRICKE.md 8).
+ */
+const ANMELDUNG_FEHLGESCHLAGEN = 'Anmeldung nicht möglich. Bitte Zugangsdaten prüfen.';
+
+/** Haelt einen Anmeldeversuch fest. Der Grund gehoert hierher, nicht in die Antwort. */
+function anmeldung_protokollieren(string $benutzername, bool $erfolg, string $grund = ''): void
+{
+    try {
+        db()->prepare('INSERT INTO login_log (benutzername, erfolg, grund, ip) VALUES (?,?,?,?)')
+            ->execute([$benutzername, $erfolg ? 1 : 0, $grund,
+                       $_SERVER['REMOTE_ADDR'] ?? '']);
+    } catch (Throwable $e) {
+        error_log('[fachkonferenzen] Anmeldeprotokoll nicht erreichbar: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Zaehlt Fehlversuche im Sperrfenster.
+ *
+ * Scheitert GESCHLOSSEN: Laesst sich die Zahl nicht ermitteln — etwa
+ * weil die Tabelle fehlt —, gilt das Konto als gesperrt. Eine Bremse,
+ * die im Fehlerfall durchlaesst, ist keine.
+ */
+function anmeldung_gesperrt(string $benutzername): bool
+{
+    try {
+        $st = db()->prepare(
+            'SELECT COUNT(*) FROM login_log
+              WHERE benutzername = ? AND erfolg = 0
+                AND zeitpunkt > NOW() - INTERVAL ? MINUTE');
+        $st->execute([$benutzername, ANMELDUNG_SPERRE_MINUTEN]);
+        return (int)$st->fetchColumn() >= ANMELDUNG_MAX_VERSUCHE;
+    } catch (Throwable $e) {
+        error_log('[fachkonferenzen] Sperrpruefung fehlgeschlagen, weise ab: ' . $e->getMessage());
+        return true;
+    }
+}
+
 function login_lokal(string $email, string $passwort): void
 {
     $st = db()->prepare("SELECT * FROM benutzer WHERE email = ? AND typ = 'lokal' AND aktiv = 1");
@@ -97,18 +147,39 @@ function login_webuntis(string $benutzername, string $passwort): void
     if (!($cfg['enabled'] ?? false)) json_err('WebUntis-Login ist deaktiviert', 400);
     if ($benutzername === '' || $passwort === '') json_err('Benutzername und Passwort angeben', 400);
 
+    // Bremse VOR dem Anmeldeversuch. Danach waere sie wirkungslos: Der
+    // Versuch gegen WebUntis hat dann schon stattgefunden.
+    if (anmeldung_gesperrt($benutzername)) {
+        anmeldung_protokollieren($benutzername, false, 'zu_viele_versuche');
+        json_err(ANMELDUNG_FEHLGESCHLAGEN, 401);
+    }
+
     $wu = new WebUntisAuth($cfg['base_url'], $cfg['school'], $cfg['client']);
     try {
         $auth = $wu->authenticate($benutzername, $passwort);
-    } catch (RuntimeException $e) {
-        json_err('WebUntis-Anmeldung fehlgeschlagen: ' . $e->getMessage(), 401);
+    } catch (Throwable $e) {
+        // Throwable, nicht nur RuntimeException: Faellt hier etwas anderes
+        // an — ein PDO-Fehler, ein Typfehler —, faenge es der globale
+        // Behandler ab und gaebe seinen Text als 500 aus. Damit waere der
+        // Anmeldepfad wieder unterscheidbar. Aufbau wie in signage.
+        //
+        // Was WebUntis ueber den Fehlschlag sagt, gehoert ins Protokoll.
+        // Falsches Passwort und Netzwerkfehler sehen fuer den Benutzer
+        // gleich aus; der Unterschied steht im Log.
+        error_log('[fachkonferenzen] WebUntis-Anmeldung: ' . $e->getMessage());
+        anmeldung_protokollieren($benutzername, false, 'falsches_passwort_oder_netz');
+        json_err(ANMELDUNG_FEHLGESCHLAGEN, 401);
     }
 
     $personType = (int)($auth['personType'] ?? 0);
     $personId   = (int)($auth['personId'] ?? 0);
     if (!in_array($personType, $cfg['allowed_person_types'], true)) {
         $wu->logout();
-        json_err('Dieser Kontotyp ist für diese Anwendung nicht freigeschaltet', 403);
+        // Nach aussen wie ein falsches Passwort: Diese Ablehnung faellt
+        // NACH erfolgreicher Passwortpruefung, und ein eigener Statuscode
+        // verriete genau das.
+        anmeldung_protokollieren($benutzername, false, 'kontotyp_nicht_freigeschaltet');
+        json_err(ANMELDUNG_FEHLGESCHLAGEN, 401);
     }
 
     $kuerzel = null; $name = null; $rolle = 'lehrkraft'; $webuntisId = $personId;
@@ -163,6 +234,7 @@ function login_webuntis(string $benutzername, string $passwort): void
     $_SESSION['name']        = ($name !== null && $name !== '') ? $name : ($kuerzel ?? 'Unbekannt');
     $_SESSION['rolle']       = $rolle;
     $_SESSION['auth_quelle'] = 'webuntis';
+    anmeldung_protokollieren($benutzername, true);
     json_out(current_user());
 }
 
