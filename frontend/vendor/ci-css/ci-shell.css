@@ -1,4 +1,4 @@
-/* VENDORED aus hornse/ci-css v1.7.0 – dort ändern, hierher kopieren! */
+/* VENDORED aus hornse/ci-css v1.8.0 – dort ändern, hierher kopieren! */
 /* ============================================================
    ci-shell.css – Gerüst der FRG-Projektreihe
    Stufe 3 von 3. Setzt ci-tokens.css voraus, ergänzt ci-komponenten.css.
@@ -25,6 +25,24 @@
      voll     ab 1024 px – Leiste mit Text
      symbole  eingeklappt, nur Symbole (Beschriftung als Tooltip)
      offen    unter 768 px – Schublade über dem Inhalt
+
+   BREITE DER BAHNEN. Inhalt und Kopfleiste laufen normalerweise auf
+   --ci-inhalt-breite. Wer davon abweicht, nimmt eine dieser Klassen —
+   geraten wird kein Name, hier steht, welche es gibt:
+
+     .ci-huelle--breit            an der HÜLLE. Stellt Inhalt UND
+                                  Kopfleiste zugleich breit. Der
+                                  Regelfall für eine breite Ansicht:
+                                  Wochenplan, Reihenfolge-Editor,
+                                  Tabelle über viele Spalten.
+     .ci-inhalt-innen--breit      nur der Inhalt, Kopfleiste bleibt
+                                  schmal. Für den selteneren Fall,
+                                  dass genau das gewollt ist.
+     .ci-inhalt-innen--formular   38rem. Seiten, die aus genau EINEM
+                                  Formular bestehen: Anmeldung,
+                                  Passwortwechsel, Bestätigung.
+     .ci-inhalt-innen--lesen      60rem. Reine Textseiten: Hilfe,
+                                  Impressum, Datenschutz.
 
    REGEL wie überall: kein Farbwert, nur Tokens.
 
@@ -202,6 +220,18 @@
    Bedienelement, nicht am Container. */
 .ci-inhalt-innen--breit { max-width: none; }
 
+/* Seiten, die aus genau EINEM Formular bestehen: Anmeldung,
+   Passwortwechsel, Bestätigungsdialog. Ohne diese Variante steht dort
+   eine Karte über die volle Inhaltsbreite um ein Formular, das
+   --ci-feld-breite nie überschreitet. */
+.ci-inhalt-innen--formular { max-width: var(--ci-formular-breite); }
+
+/* Reine Textseiten: Hilfe, Impressum, Datenschutz. 76rem sind für
+   einen Absatz zu weit - das Auge verliert beim Zeilenwechsel den
+   Anschluss. Der Wert stand als Begründung schon an
+   --ci-inhalt-breite, nur nicht als Klasse. */
+.ci-inhalt-innen--lesen { max-width: var(--ci-lese-breite); }
+
 /* Schalter zum Ein- und Ausklappen. Auf breiten Anzeigen sitzt er
    unten in der Leiste, auf schmalen als Menüknopf über dem Inhalt. */
 .ci-leiste-schalter {
@@ -323,6 +353,26 @@
     margin: 0 auto;
     padding: 0 1.5rem;
 }
+
+/* Breite Ansicht, an EINER Stelle geschaltet.
+
+   Bis hierher gab es .ci-inhalt-innen--breit, aber nichts für die
+   Leiste darüber. Jede Anwendung, die den Inhalt breit stellte, trug
+   eine Kopfleiste in anderer Breite als ihren Inhalt - die Kante
+   zwischen beiden sprang sichtbar.
+
+   Bewusst KEINE zweite Variantenklasse .ci-leiste-innen--breit: Die
+   wäre kleiner gewesen, hätte aber zwei Stellen geschaffen, die
+   zusammenpassen müssen. Genau daraus ist der Fehler entstanden, den
+   sie beheben soll - wer eine setzt und die andere vergisst, hat ihn
+   wieder. Hier gibt es nur einen Schalter, und er sitzt an der Hülle:
+   Die beiden Bahnen können nicht mehr auseinanderlaufen.
+
+   .ci-inhalt-innen--breit bleibt unverändert. Es ist weiterhin
+   richtig für den Fall, dass NUR der Inhalt breit werden soll -
+   etwa eine breite Tabelle unter einer normal breiten Kopfleiste. */
+.ci-huelle--breit .ci-inhalt-innen,
+.ci-huelle--breit .ci-leiste-innen { max-width: none; }
 
 .ci-huelle--kopf .ci-schild {
     border-bottom: 0;
@@ -472,6 +522,22 @@
    Die Regel steht am ENDE der Datei: Gleiche Spezifitaet wie eine
    Klassenregel, aber spaeter — damit gewinnt sie. Ohne !important,
    das ein Projekt nicht mehr uebersteuern koennte.
+
+   NACHGETRAGEN 22.09.2026 (Befund A3): "Gleiche Spezifitaet" genuegte
+   nicht. Sie genuegt gegen .ci-leiste, nicht gegen .ci-nav a (0,1,1)
+   oder .ci-huelle--kopf .ci-nav .ci-symbol (0,3,0) - elf Regeln dieser
+   Datei schlugen die Zeile. Das Attribut wird deshalb dreimal
+   geschrieben: derselbe Treffer, Spezifitaet (0,3,0), und als letzte
+   Regel gewinnt sie auch den Gleichstand.
+
+   Drei und nicht mehr, weil (0,3,0) der hoechste Wert ist, den eine
+   display-Regel dieser Datei erreicht. Ein Projekt kann weiterhin
+   uebersteuern - es laedt spaeter. Genau das war der Grund gegen
+   !important, und er gilt unveraendert.
+
+   Aufgezaehlt wird hier nichts: tests/pruefe.sh ERMITTELT die
+   display-Regeln und rechnet nach, ob diese Zeile sie schlaegt.
    ============================================================ */
 
-[hidden] { display: none; }
+[hidden],
+[hidden][hidden][hidden] { display: none; }

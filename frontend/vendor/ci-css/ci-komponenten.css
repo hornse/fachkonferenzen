@@ -1,4 +1,4 @@
-/* VENDORED aus hornse/ci-css v1.7.0 – dort ändern, hierher kopieren! */
+/* VENDORED aus hornse/ci-css v1.8.0 – dort ändern, hierher kopieren! */
 /* ============================================================
    ci-komponenten.css – Bausteine der FRG-Projektreihe
    Stufe 2 von 2. Setzt ci-tokens.css voraus.
@@ -12,6 +12,23 @@
    Während der Umstellung sind in jedem Projekt beide CSS-Dateien
    gleichzeitig geladen, und ohne Präfix würde .karte aus diesem
    Modul still mit .karte aus dem Projekt kollidieren.
+
+   VARIANTEN, DIE NICHT ZU ERRATEN SIND. Ein geratener Klassenname
+   sieht richtig aus und hat einfach keine Regel. Deshalb steht hier,
+   was es gibt, bevor jemand einen Namen erfindet:
+
+     .ci-raster          Kartenraster, Spalten ab --ci-raster-min
+                         (22rem). Für Karten mit Fließtext.
+     .ci-raster--schmal  dasselbe Raster mit --ci-raster-min-schmal
+                         (9.5rem). Für Kacheln, die nur ein Wort und
+                         eine Zahl tragen — zwei davon passen damit
+                         auch auf ein Telefon nebeneinander.
+     .ci-knopf           bekommt unter (pointer: coarse) ein
+                         Mindestmaß von --ci-beruehrung-min. Ein
+                         Projekt braucht dafür keine eigene Zeile.
+
+   Die Breitenvarianten für Inhalt und Kopfleiste stehen im Kopf von
+   ci-shell.css.
 
    Copyright (C) 2026 Sebastian Horn, Friedrich-Rückert-Gymnasium
    SPDX-License-Identifier: GPL-3.0-or-later
@@ -171,6 +188,23 @@
 
 .ci-knopf--klein { padding: .35rem .7rem; font-size: var(--ci-groesse-klein); }
 
+/* Mindestmaß für einen Finger.
+
+   .55rem Polsterung auf 1.2 Zeilenhöhe ergeben rund 39px - unter der
+   üblichen Schwelle von 44px, und .ci-knopf--klein liegt mit rund 32px
+   deutlich darunter. Auf einem Telefon trifft man daneben.
+
+   NUR unter (pointer: coarse), und das ist die eigentliche Entscheidung:
+   Ein min-height für alle Knöpfe würde jeden Knopf in jeder Anwendung
+   höher machen, auch am Monitor mit Maus, wo 39px nie ein Problem
+   waren. Das wäre eine sichtbare Änderung am Bestand, die niemand
+   angefragt hat. Die Abfrage fragt nach dem Zeigegerät, nicht nach der
+   Bildschirmbreite: Ein schmales Fenster am Monitor ist kein Finger,
+   ein Tablet in Landschaft schon. */
+@media (pointer: coarse) {
+    .ci-knopf { min-height: var(--ci-beruehrung-min); }
+}
+
 /* ---- Formulare -------------------------------------------- */
 
 .ci-feld { margin-bottom: var(--ci-abstand-s); }
@@ -299,6 +333,18 @@
 /* Im Raster regelt der Abstand das Gitter, nicht die Karte. */
 .ci-raster > .ci-karte { margin-bottom: 0; }
 
+/* Für Kacheln, die nur ein Wort und eine Zahl tragen - eine Stunde,
+   ein Raum, ein Zustand. Dafür sind 22rem zu breit: Auf einem Telefon
+   steht dann eine Kachel je Zeile, obwohl zwei nebeneinander passen
+   und die Ansicht halb so lang machen.
+
+   Der Grundfall bleibt unberührt - dies ist eine zweite Größe, keine
+   andere. Wer Bildschirmkarten mit Fließtext setzt, nimmt weiter
+   .ci-raster. */
+.ci-raster--schmal {
+    grid-template-columns: repeat(auto-fill, minmax(var(--ci-raster-min-schmal), 1fr));
+}
+
 /* ---- Marken ----------------------------------------------- */
 
 .ci-marke {
@@ -416,3 +462,28 @@
     .ci-karte { padding: var(--ci-abstand-s); }
     .ci-zeile { gap: var(--ci-abstand-s); }
 }
+
+
+/* ============================================================
+   hidden hat das letzte Wort
+
+   Dieselbe Regel wie am Ende von ci-shell.css - und sie muss HIER
+   noch einmal stehen, nicht nur dort. EINBINDUNG.md kennt eine Stufe,
+   in der ein Projekt ci-tokens.css und ci-komponenten.css laedt, aber
+   ci-shell.css nicht. In dieser Stufe schuetzte die Zeile am Ende der
+   anderen Datei nichts.
+
+   Beobachtet am 22.09.2026 (Befund A3): .ci-knopf setzt
+   display: inline-flex. Ein <button class="ci-knopf" hidden> blieb
+   sichtbar, weil die Vorgabe des Browsers gegen jede Autorenregel
+   verliert. Der Code war richtig - wie schon bei .ci-leiste in
+   signage und bei .ci-nav a.
+
+   Dreifach geschrieben: .ci-feld > label und .ci-kaesten label
+   erreichen (0,1,1) und schlagen ein einfaches [hidden]. Die Form ist
+   dieselbe wie in ci-shell.css, damit es nur eine zu lesende Loesung
+   gibt. Ohne !important, damit ein Projekt uebersteuern kann.
+   ============================================================ */
+
+[hidden],
+[hidden][hidden][hidden] { display: none; }
