@@ -1,4 +1,4 @@
-/* VENDORED aus hornse/ci-css v1.8.0 – dort ändern, hierher kopieren! */
+/* VENDORED aus hornse/ci-css v1.9.0 – dort ändern, hierher kopieren! */
 /* ============================================================
    ci-komponenten.css – Bausteine der FRG-Projektreihe
    Stufe 2 von 2. Setzt ci-tokens.css voraus.
@@ -22,7 +22,9 @@
      .ci-raster--schmal  dasselbe Raster mit --ci-raster-min-schmal
                          (9.5rem). Für Kacheln, die nur ein Wort und
                          eine Zahl tragen — zwei davon passen damit
-                         auch auf ein Telefon nebeneinander.
+                         auch auf ein Telefon nebeneinander. Die
+                         Spalten füllen die Zeile aus (auto-fit),
+                         anders als im Grundraster.
      .ci-knopf           bekommt unter (pointer: coarse) ein
                          Mindestmaß von --ci-beruehrung-min. Ein
                          Projekt braucht dafür keine eigene Zeile.
@@ -338,11 +340,19 @@
    steht dann eine Kachel je Zeile, obwohl zwei nebeneinander passen
    und die Ansicht halb so lang machen.
 
+   auto-fit, nicht auto-fill wie im Grundraster: auto-fill legt auch
+   LEERE Spalten an. Zwei Kacheln auf einem breiten Bildschirm blieben
+   damit beide schmal, und rechts stand Leerraum. Bei breiten Karten
+   ist genau das gewollt - eine einzelne Karte soll sich nicht über
+   1200px dehnen. Bei schmalen Kacheln ist es der Fehler: Sie sollen
+   die Zeile ausfüllen. Ein Zeichen Unterschied, und im meldenden
+   Projekt war es schon einmal dieselbe Ursache.
+
    Der Grundfall bleibt unberührt - dies ist eine zweite Größe, keine
    andere. Wer Bildschirmkarten mit Fließtext setzt, nimmt weiter
    .ci-raster. */
 .ci-raster--schmal {
-    grid-template-columns: repeat(auto-fill, minmax(var(--ci-raster-min-schmal), 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(var(--ci-raster-min-schmal), 1fr));
 }
 
 /* ---- Marken ----------------------------------------------- */
