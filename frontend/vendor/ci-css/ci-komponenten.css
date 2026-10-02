@@ -1,4 +1,4 @@
-/* VENDORED aus hornse/ci-css v1.9.0 – dort ändern, hierher kopieren! */
+/* VENDORED aus hornse/ci-css v2.0.0 – dort ändern, hierher kopieren! */
 /* ============================================================
    ci-komponenten.css – Bausteine der FRG-Projektreihe
    Stufe 2 von 2. Setzt ci-tokens.css voraus.
@@ -323,12 +323,20 @@
    auto-fill statt auto-fit: Bei wenigen Karten bleiben sie in ihrer
    natürlichen Breite stehen, statt sich über die ganze Zeile zu
    dehnen. Eine einzelne Karte, die 1200px breit ist, sieht aus wie
-   ein Fehler. */
+   ein Fehler.
+
+   align-items: stretch, nicht start: Die Karten einer Zeile stehen
+   gleich hoch, und ein Knopf am Fuß sitzt bei allen auf derselben
+   Linie. Bis v1.9.0 stand hier start, ohne Begründung; gemessen waren
+   zwei Karten einer Zeile damit 33 und 52px hoch. stretch ist zugleich
+   die Voreinstellung von Grid - die Zeile steht trotzdem da, damit
+   niemand start für entschieden hält. Wer Karten in ihrer natürlichen
+   Höhe braucht, setzt align-items: start am eigenen Raster. */
 .ci-raster {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(var(--ci-raster-min), 1fr));
     gap: var(--ci-abstand-m);
-    align-items: start;
+    align-items: stretch;
     margin-bottom: var(--ci-abstand-m);
 }
 
@@ -357,10 +365,16 @@
 
 /* ---- Marken ----------------------------------------------- */
 
+/* Der Rand trägt die Form. Eine neutrale Marke ist das Wort, das eine
+   Bedeutung trägt, wo ein Flächenton es allein nicht darf - also muss
+   man sie finden. Ihre Fläche hebt sich von der Zelle kaum ab (1.00 bis
+   1.10), ein Rand in --ci-linie ebenso wenig (1.12 bis 1.23). In
+   --ci-text-blass hält er gegen --ci-grund, --ci-flaeche-2 und
+   --ci-flaeche über 3:1, wie die Ränder der getönten Marken auch. */
 .ci-marke {
     display: inline-block;
     padding: .1rem .55rem;
-    border: 1px solid var(--ci-linie);
+    border: 1px solid var(--ci-text-blass);
     border-radius: var(--ci-radius-pille);
     background: var(--ci-grund);
     color: var(--ci-text-blass);
