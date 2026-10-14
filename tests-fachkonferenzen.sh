@@ -188,9 +188,13 @@ if [ ! -f deploy.sh ]; then
     rot "deploy.sh fehlt – nichts geprüft"
 else
     DEPLOY_CODE=$(grep -vE '^[[:space:]]*#' deploy.sh | sed 's/[[:space:]]#.*$//' || true)
-    DEPLOY_ADD=$(printf '%s\n' "$DEPLOY_CODE" | grep -cE 'git[[:space:]]+add([[:space:]]|$)' || true)
+    # Nur an BEFEHLSSTELLEN: Zeilenanfang oder nach ; & | ( then do else.
+    # Ein "git add …" im Text einer echo-Zeile hielte die Prüfung sonst
+    # grün, auch wenn das echte git add fehlt (Gegenprobe P12, 14.10.2026).
+    BEFEHL='(^|[;&|(]|(then|do|else)[[:space:]])[[:space:]]*'
+    DEPLOY_ADD=$(printf '%s\n' "$DEPLOY_CODE" | grep -cE "${BEFEHL}"'git[[:space:]]+add([[:space:]]|$)' || true)
     PAUSCHAL=$(printf '%s\n' "$DEPLOY_CODE" \
-        | grep -E 'git[[:space:]]+add([[:space:]]+[^[:space:]]+)*[[:space:]]+(-A|--all|-u|--update|\.|\*|:/)([[:space:];]|$)|git[[:space:]]+commit([[:space:]]+[^[:space:]]+)*[[:space:]]+(-[a-zA-Z]*a[a-zA-Z]*|--all)([[:space:];]|$)' || true)
+        | grep -E "${BEFEHL}"'git[[:space:]]+add([[:space:]]+[^[:space:]]+)*[[:space:]]+(-A|--all|-u|--update|\.|\*|:/)([[:space:];]|$)|'"${BEFEHL}"'git[[:space:]]+commit([[:space:]]+[^[:space:]]+)*[[:space:]]+(-[a-zA-Z]*a[a-zA-Z]*|--all)([[:space:];]|$)' || true)
     if [ -n "$PAUSCHAL" ]; then
         rot "deploy.sh addiert pauschal: $(printf '%s' "$PAUSCHAL" | tr '\n' '|')"
     elif [ "$DEPLOY_ADD" = "0" ]; then
