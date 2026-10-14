@@ -94,9 +94,11 @@ muss. Frag nach, wenn ein projektspezifischer Wert («…») fehlt.
 - **GitHub** zusätzlich als privates Remote namens `github`
   (in IntelliJ: „Share Project on GitHub", danach Remote von `origin`
   in `github` umbenennen; `gh` CLI ist lokal nicht installiert).
-- **Deploy-Skript:** `./deploy.sh "Commit-Nachricht"` – setzt Cache-Busting-Timestamp
-  in `index.html`, macht `git add -A`, commit, dann `git push github main &&
-  git push uberspace main`.
+- **Deploy-Skript:** `./deploy.sh "Commit-Nachricht"` – hält zuerst an, wenn
+  unverfolgte, geänderte oder gemerkte Dateien da sind, und nennt sie; setzt
+  dann den Cache-Busting-Timestamp in `index.html`, addiert **nur diese Datei
+  namentlich** (nie `git add -A`), commit, dann `git push github main &&
+  git push uberspace main`. Vorbild: `deploy.sh` dieses Projekts.
 - **Wichtig:** `deploy.sh` überträgt nur **Dateien**. DB-Migrationen/Seeds werden
   **separat** auf dem Server eingespielt: `mysql hornse_«projektname» < sql/NN_*.sql`.
 - **`config.php`** liegt nicht in git und muss nach frischem Deploy einmalig aus
