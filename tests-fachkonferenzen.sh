@@ -172,5 +172,34 @@ grep -q -- '--hinweis-flaeche:.*var(--ci-warnung-flaeche)' "$CSS" \
     && gruen "Hinweiskasten nutzt das Token" || rot "Hinweiskasten mit eigener Fläche"
 
 echo ""
+echo "deploy.sh addiert namentlich"
+# REIHENREGELN 6: Ein Auslieferungsskript addiert namentlich und hält bei
+# unverfolgten Dateien an. Bis zum 14.10.2026 stand in deploy.sh
+# "git add -A": Eine Datei, die unverfolgt im Baum lag, wäre ungesehen
+# committet, nach GitHub gepusht und ausgeliefert worden.
+#
+# Gesucht wird im AUSFÜHRBAREN Teil: ganze Kommentarzeilen und
+# Zeilenendkommentare fallen vorher weg, denn deploy.sh erklärt genau
+# diese Regel und nennt dabei "git add -A" (REIHENREGELN 2). Pauschal
+# sind: -A, --all, -u, --update, ".", "*", ":/" sowie "git commit -a" in
+# jeder Schreibweise. Findet sie gar kein git add, ist nichts geprüft,
+# und sie sagt das.
+if [ ! -f deploy.sh ]; then
+    rot "deploy.sh fehlt – nichts geprüft"
+else
+    DEPLOY_CODE=$(grep -vE '^[[:space:]]*#' deploy.sh | sed 's/[[:space:]]#.*$//' || true)
+    DEPLOY_ADD=$(printf '%s\n' "$DEPLOY_CODE" | grep -cE 'git[[:space:]]+add([[:space:]]|$)' || true)
+    PAUSCHAL=$(printf '%s\n' "$DEPLOY_CODE" \
+        | grep -E 'git[[:space:]]+add([[:space:]]+[^[:space:]]+)*[[:space:]]+(-A|--all|-u|--update|\.|\*|:/)([[:space:];]|$)|git[[:space:]]+commit([[:space:]]+[^[:space:]]+)*[[:space:]]+(-[a-zA-Z]*a[a-zA-Z]*|--all)([[:space:];]|$)' || true)
+    if [ -n "$PAUSCHAL" ]; then
+        rot "deploy.sh addiert pauschal: $(printf '%s' "$PAUSCHAL" | tr '\n' '|')"
+    elif [ "$DEPLOY_ADD" = "0" ]; then
+        rot "deploy.sh enthält im ausführbaren Teil kein git add – nichts geprüft"
+    else
+        gruen "deploy.sh addiert namentlich ($DEPLOY_ADD git add, keines pauschal)"
+    fi
+fi
+
+echo ""
 if [ "$FEHLER" -eq 0 ]; then echo "ALLES GRÜN"; exit 0; fi
 echo "$FEHLER FEHLER"; exit 1
