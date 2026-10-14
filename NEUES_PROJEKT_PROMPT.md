@@ -64,7 +64,7 @@ muss. Frag nach, wenn ein projektspezifischer Wert («…») fehlt.
 ```
 «projektname»/
 ├── backend/
-│   ├── router.php          ← HTTPS + session_name GANZ OBEN (kritisch!)
+│   ├── router.php          ← session_name + Cookie-Flags GANZ OBEN (kritisch!)
 │   ├── config.php          ← NICHT in git (.gitignore)
 │   ├── config.example.php  ← Vorlage in git
 │   ├── bootstrap.php       ← Session, PDO, JSON-Helfer, Auth-Guards
@@ -104,11 +104,19 @@ muss. Frag nach, wenn ein projektspezifischer Wert («…») fehlt.
 
 ## 5. Kritische Fallstricke (immer beachten)
 
-1. **`router.php` – zwei Zeilen ganz oben, vor jedem `require`:**
+1. **`session_name()` und `session_set_cookie_params()` vor dem ersten
+   Sitzungszugriff** – ganz oben im Router, vor jedem `require`:
    ```php
-   $_SERVER['HTTPS'] = 'on';        // Uberspace terminiert SSL vor PHP
    session_name('«proj»_session');  // sonst Session-Verlust nach Login
+   session_set_cookie_params([      // allein dies schützt das Cookie
+       'lifetime' => 0, 'path' => '/',
+       'secure' => true, 'httponly' => true, 'samesite' => 'Lax',
+   ]);
    ```
+   `$_SERVER['HTTPS']` hat auf die Cookie-Flags keinen Einfluss. Belegt
+   wird es am Betrieb: `Set-Cookie` muss alle drei zeigen. `Lax`, nicht
+   `Strict` – sonst steht abgemeldet da, wer über einen Link von außen
+   kommt.
 2. **Nie `empty()` für IDs, die 0 sein dürfen** (z. B. WebUntis-Lehrer mit id=0):
    `if (!isset($_SESSION['benutzer_id']) || $_SESSION['benutzer_id'] === null)`.
 3. **Nie `isset()` für Array-Einträge, deren Wert `null` sein kann** –
