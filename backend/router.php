@@ -7,12 +7,28 @@
 $_SERVER['HTTPS'] = 'on';          // sonst kein Secure-Flag am Session-Cookie
 session_name('fako_session');      // sonst Session-Verlust nach Login
 
-$uri  = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+// ?: '/' – parse_url liefert für "//x" null (der Teil nach // gilt als
+// Host). Ohne Rückfall wäre das mit der Sperrfunktion ein TypeError (500).
+$uri  = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 $root = __DIR__;                   // /home/hornse/fachkonferenzen/backend
 
 // --- API ----------------------------------------------------
 if (strpos($uri, '/api/') === 0 || $uri === '/api') {
     require $root . '/api/index.php';
+    return true;
+}
+
+// --- Sperrliste ---------------------------------------------
+// Was Apache sperrt (Editor-Reste, Daten, Einstellungen, Doku, Skripte,
+// Punktdateien), liefert auch dieser Router nicht aus. Nach dem API-Zweig,
+// vor jeder Dateiauslieferung und vor dem SPA-Rückfall: immer 404, nie 403,
+// gleich ob die Datei existiert. Die Liste steht in sperrliste.php;
+// tests/sperrliste_test.php misst sie gegen die Apache-Vorlage.
+require_once $root . '/sperrliste.php';
+if (fk_pfad_gesperrt($uri)) {
+    http_response_code(404);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo 'Nicht gefunden';
     return true;
 }
 

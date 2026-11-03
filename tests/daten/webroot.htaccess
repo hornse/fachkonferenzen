@@ -1,0 +1,18 @@
+# VENDORED aus hornse/koordination (kein Tag; Stand 5d51561 vom 02.11.2026, docs/betrieb/apache/webroot.htaccess) – dort ändern, hierher kopieren!
+# Sperrliste für alle Apache-Wurzeln unter /var/www/virtual/hornse/
+# VERSIONIERT in hornse/koordination docs/betrieb/apache/ – dort ändern,
+# hierher kopieren, byte-gleich (LIESMICH.md dort). Auftrag:
+# docs/AUFTRAG-webroot-sperrliste.md.
+
+Options -Indexes
+
+# Editor-Reste, Daten, Einstellungen, Doku und Skripte – unabhängig von Groß- und Kleinschreibung.
+<FilesMatch "(?i)(\.(save(\.[0-9]+)?|swp|swo|orig|old|bak|tmp|sql|sqlite|db|log|env|ini|dist|inc|md|sh)|~)$">
+    Require all denied
+</FilesMatch>
+
+# Versteckt: jeder Pfadteil, der mit einem Punkt beginnt, also auch alles
+# unter .git/. Ausnahme: .well-known/.
+<If "%{REQUEST_URI} =~ m#/\.(?!well-known(/|$))#">
+    Require all denied
+</If>
